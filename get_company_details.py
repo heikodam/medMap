@@ -46,7 +46,7 @@ async def update_company(company_id, details):
     actor_data = details.get('actorDataPublicView', {})
     if not actor_data:
         print(f"Warning: No actorDataPublicView for company {company_id}")
-        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company_id).execute()
+        supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company_id).execute()
         return
 
     city_name = actor_data.get('actorAddress', {}).get('cityName', 'Unknown')
@@ -106,7 +106,7 @@ async def update_company(company_id, details):
     # Remove None values from the update dictionary
     company_update = {k: v for k, v in company_update.items() if v is not None}
     
-    await supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
+    supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
 
 async def insert_contact_person(company_id, contact):
     existing_contact = supabase.table('eudamed_contactpeople').select('id')\
