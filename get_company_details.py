@@ -3,6 +3,7 @@ import uuid
 import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import json
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +39,9 @@ def update_company(company_id, details):
     city_id = get_or_create_city(city_name)
     
     company_update = {
+        "json_dump": json.dumps(details),
+        "importers": json.dumps(details.get('importers')),
+        "non_eu_manufacturers": json.dumps(details.get('nonEuManufacturers')),
         "eudamed_status": actor_data.get('actorStatus', {}).get('code') if actor_data.get('actorStatus') else None,
         "iso_code": actor_data.get('actorAddress', {}).get('country', {}).get('iso2Code'),
         "city_id": city_id,
@@ -48,13 +52,40 @@ def update_company(company_id, details):
         "eudamed_identifier": actor_data.get('eudamedIdentifier'),
         "phone": actor_data.get('telephone'),
         "email": actor_data.get('electronicMail'),
-        "website": actor_data.get('website'),
+        "original_website": actor_data.get('website'),
         "validator_name": actor_data.get('validatorName'),
         "validator_uuid": actor_data.get('validatorUuid'),
         "validator_type": actor_data.get('validatorType', {}).get('srnCode') if actor_data.get('validatorType') else None,
         "validator_srn": actor_data.get('validatorSrn'),
         "validator_email": actor_data.get('validatorEmail'),
         "validator_phone": actor_data.get('validatorTelephone'),
+        "actor_ulid": actor_data.get('ulid'),
+        "actor_version_number": actor_data.get('versionNumber'),
+        "actor_version_state": actor_data.get('versionState'),
+        "actor_latest_version": actor_data.get('latestVersion'),
+        "actor_last_update_date": actor_data.get('lastUpdateDate'),
+        "actor_names": json.dumps(actor_data.get('name')),
+        "actor_abbreviated_names": json.dumps(actor_data.get('abbreviatedName')),
+        "actor_status_from_date": actor_data.get('actorStatusFromDate'),
+        "actor_country_name": actor_data.get('country', {}).get('name'),
+        "actor_country_type": actor_data.get('country', {}).get('type'),
+        "actor_geographical_address": actor_data.get('geographicalAddress'),
+        "european_vat_number_applicable": actor_data.get('europeanVatNumberApplicable'),
+        "organization_identification_documents": json.dumps(actor_data.get('organizationIdentificationDocuments')),
+        "authorised_representatives": json.dumps(actor_data.get('authorisedRepresentatives')),
+        "competent_authority_responsibility": actor_data.get('competentAuthorityResponsibility'),
+        "actor_address": json.dumps(actor_data.get('actorAddress')),
+        "validator_address": json.dumps(actor_data.get('validatorAddress')),
+        "regulatory_compliance_responsibles": json.dumps(actor_data.get('regulatoryComplianceResponsibles')),
+        "legislation_links": json.dumps(actor_data.get('legislationLinks')),
+        "latest_subsidiary": json.dumps(actor_data.get('latestSubsidiary')),
+        "certificates": json.dumps(actor_data.get('certificates')),
+        "latest_version": actor_data.get('latestVersion'),
+        "version_number": actor_data.get('versionNumber'),
+        "version_state": json.dumps(actor_data.get('versionState')),
+        "last_update_date": actor_data.get('lastUpdateDate'),
+        "accuracy_data": json.dumps(actor_data.get('accuracyData')),
+        "last_accuracy_date": actor_data.get('lastAccuracyDate'),
         "scraping_status": "GOT_COMPANY_DETAILS"
     }
     
@@ -62,6 +93,8 @@ def update_company(company_id, details):
     company_update = {k: v for k, v in company_update.items() if v is not None}
     
     supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
+
+
 
 def insert_contact_person(company_id, contact):
     existing_contact = supabase.table('eudamed_contactpeople').select('id')\
@@ -74,7 +107,7 @@ def insert_contact_person(company_id, contact):
         .execute()
     
     if existing_contact.data:
-        print(f"Contact already exists for company {company_id} with email {contact.get('electronicMail')} and phone {contact.get('telephone')}")
+        # print(f"Contact already exists for company {company_id} with email {contact.get('electronicMail')} and phone {contact.get('telephone')}")
         return
 
     geo_address = contact.get('geographicalAddress', {})
@@ -120,21 +153,23 @@ def process_company(company):
         print(f"Warning: No actorDataPublicView for company {company['id']}")
         supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
 
-def fetch_companies(page=0, page_size=1000):
-    return supabase.table('eudamed_companies').select('*').eq('scraping_status', 'GOT_COMPANY_ID').range(page*page_size, (page+1)*page_size-1).execute()
+def fetch_companies():
+    return supabase.table('eudamed_companies')\
+        .select('*')\
+        .neq("scraping_status", "GOT_COMPANY_DETAILS")\
+        .execute()
 
 def process_all_companies():
-    page = 0
     while True:
-        companies = fetch_companies(page)
+        companies = fetch_companies()
         if not companies.data:
             break
         
         for company in companies.data:
             print(f"Processing company: {company['name']} - {company['id']}")
             process_company(company)
+            
         
-        page += 1
     
     print("Finished processing all companies.")
 
