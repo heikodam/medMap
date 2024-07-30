@@ -1,6 +1,7 @@
 import os
 import uuid
-import requests
+import asyncio
+import aiohttp
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import json
@@ -16,27 +17,40 @@ supabase: Client = create_client(url, key)
 # EUDAMED API URL
 base_url = "https://ec.europa.eu/tools/eudamed/api/actors"
 
-def fetch_company_details(eudamed_uuid):
-    response = requests.get(f"{base_url}/{eudamed_uuid}/publicInformation?languageIso2Code=en")
-    return response.json()
+async def fetch_company_details(session, eudamed_uuid):
+    url = f"{base_url}/{eudamed_uuid}/publicInformation?languageIso2Code=en"
+    
+    for attempt in range(3):  # Try up to 3 times
+        try:
+            async with session.get(url) as response:
+                return await response.json()
+        except aiohttp.ClientError:
+            if attempt < 2:  # If this is not the last attempt
+                print(f"Connection error for {eudamed_uuid}. Retrying in 5 seconds...")
+                await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+            else:
+                print(f"Connection failed after 3 attempts for {eudamed_uuid}. Skipping this company.")
+                return None
+    
+    return None
 
-def get_or_create_city(city_name):
-    existing_city = supabase.table('cities').select('id').eq('name', city_name).execute()
+async def get_or_create_city(city_name):
+    existing_city = await supabase.table('cities').select('id').eq('name', city_name).execute()
     if existing_city.data:
         return existing_city.data[0]['id']
     else:
-        new_city = supabase.table('cities').insert({'name': city_name}).execute()
+        new_city = await supabase.table('cities').insert({'name': city_name}).execute()
         return new_city.data[0]['id']
 
-def update_company(company_id, details):
+async def update_company(company_id, details):
     actor_data = details.get('actorDataPublicView', {})
     if not actor_data:
         print(f"Warning: No actorDataPublicView for company {company_id}")
-        supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company_id).execute()
+        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company_id).execute()
         return
 
     city_name = actor_data.get('actorAddress', {}).get('cityName', 'Unknown')
-    city_id = get_or_create_city(city_name)
+    city_id = await get_or_create_city(city_name)
     
     company_update = {
         "json_dump": json.dumps(details),
@@ -92,12 +106,10 @@ def update_company(company_id, details):
     # Remove None values from the update dictionary
     company_update = {k: v for k, v in company_update.items() if v is not None}
     
-    supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
+    await supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
 
-
-
-def insert_contact_person(company_id, contact):
-    existing_contact = supabase.table('eudamed_contactpeople').select('id')\
+async def insert_contact_person(company_id, contact):
+    existing_contact = await supabase.table('eudamed_contactpeople').select('id')\
         .eq('company_id', company_id)\
         .eq('email', contact.get('electronicMail'))\
         .eq('phone', contact.get('telephone'))\
@@ -107,12 +119,11 @@ def insert_contact_person(company_id, contact):
         .execute()
     
     if existing_contact.data:
-        # print(f"Contact already exists for company {company_id} with email {contact.get('electronicMail')} and phone {contact.get('telephone')}")
         return
 
     geo_address = contact.get('geographicalAddress', {})
     city_name = geo_address.get('cityName', 'Unknown')
-    city_id = get_or_create_city(city_name)
+    city_id = await get_or_create_city(city_name)
     
     new_contact = {
         "company_id": company_id,
@@ -128,15 +139,20 @@ def insert_contact_person(company_id, contact):
     # Remove None values from the new_contact dictionary
     new_contact = {k: v for k, v in new_contact.items() if v is not None}
     
-    supabase.table('eudamed_contactpeople').insert(new_contact).execute()
+    await supabase.table('eudamed_contactpeople').insert(new_contact).execute()
 
-def process_company(company):
-    details = fetch_company_details(company['eudamed_uuid'])
+async def process_company(session, company):
+    details = await fetch_company_details(session, company['eudamed_uuid'])
     
+    if details is None:
+        print(f"Error fetching details for company {company['id']}")
+        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
+        return
+
     # Check for error response
     if 'httpStatusCode' in details:
         print(f"Error fetching details for company {company['id']}: {details['httpStatus']}")
-        supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
+        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
         return
 
     actor_data = details.get('actorDataPublicView')
@@ -144,37 +160,39 @@ def process_company(company):
         regulatory_compliance = actor_data.get('regulatoryComplianceResponsibles')
         if regulatory_compliance is not None:
             for contact in regulatory_compliance:
-                insert_contact_person(company['id'], contact)
+                await insert_contact_person(company['id'], contact)
         else:
             print(f"No regulatory compliance responsibles for company {company['id']}")
         
-        update_company(company['id'], details)
+        await update_company(company['id'], details)
     else:
         print(f"Warning: No actorDataPublicView for company {company['id']}")
-        supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
+        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
 
-def fetch_companies():
-    return supabase.table('eudamed_companies')\
+async def fetch_companies():
+    return await supabase.table('eudamed_companies')\
         .select('*')\
         .neq("scraping_status", "GOT_COMPANY_DETAILS")\
         .execute()
 
-def process_all_companies():
-    while True:
-        companies = fetch_companies()
-        if not companies.data:
-            break
-        
-        for company in companies.data:
-            print(f"Processing company: {company['name']} - {company['id']}")
-            process_company(company)
+async def process_all_companies():
+    async with aiohttp.ClientSession() as session:
+        while True:
+            companies = await fetch_companies()
+            if not companies.data:
+                break
             
-        
+            tasks = []
+            for company in companies.data[:5]:  # Process 5 companies at a time
+                print(f"Processing company: {company['name']} - {company['id']}")
+                tasks.append(process_company(session, company))
+            
+            await asyncio.gather(*tasks)
     
     print("Finished processing all companies.")
 
 # Run the script
-process_all_companies()
+asyncio.run(process_all_companies())
 
 
 # Pseudo code
