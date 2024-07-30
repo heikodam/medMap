@@ -35,11 +35,11 @@ async def fetch_company_details(session, eudamed_uuid):
     return None
 
 async def get_or_create_city(city_name):
-    existing_city = await supabase.table('cities').select('id').eq('name', city_name).execute()
+    existing_city = supabase.table('cities').select('id').eq('name', city_name).execute()
     if existing_city.data:
         return existing_city.data[0]['id']
     else:
-        new_city = await supabase.table('cities').insert({'name': city_name}).execute()
+        new_city = supabase.table('cities').insert({'name': city_name}).execute()
         return new_city.data[0]['id']
 
 async def update_company(company_id, details):
@@ -109,7 +109,7 @@ async def update_company(company_id, details):
     await supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
 
 async def insert_contact_person(company_id, contact):
-    existing_contact = await supabase.table('eudamed_contactpeople').select('id')\
+    existing_contact = supabase.table('eudamed_contactpeople').select('id')\
         .eq('company_id', company_id)\
         .eq('email', contact.get('electronicMail'))\
         .eq('phone', contact.get('telephone'))\
@@ -139,7 +139,7 @@ async def insert_contact_person(company_id, contact):
     # Remove None values from the new_contact dictionary
     new_contact = {k: v for k, v in new_contact.items() if v is not None}
     
-    await supabase.table('eudamed_contactpeople').insert(new_contact).execute()
+    supabase.table('eudamed_contactpeople').insert(new_contact).execute()
 
 async def process_company(session, company):
     details = await fetch_company_details(session, company['eudamed_uuid'])
