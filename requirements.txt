@@ -1,0 +1,9 @@
+python-dotenv
+supabase
+requests
+aiohttp
+google-api-python-client
+beautifulsoup4
+openai
+csv
+re

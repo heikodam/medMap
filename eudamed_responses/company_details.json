@@ -1,0 +1,131 @@
+{
+    "importers" : null,
+    "nonEuManufacturers" : null,
+    "actorDataPublicView" : {
+      "ulid" : "01EVKTS7QT618C2PQM8RMTFQ0C",
+      "uuid" : "fc9cb447-d565-4643-980b-196ef56fbb6e",
+      "type" : {
+        "code" : "refdata.actor-type.authorised-representative",
+        "srnCode" : "AR",
+        "category" : "ECONOMIC_ENTITY"
+      },
+      "actorStatus" : {
+        "code" : "refdata.actor-status.active"
+      },
+      "actorStatusFromDate" : null,
+      "country" : {
+        "name" : "Austria",
+        "type" : "EU_MEMBER_STATE",
+        "iso2Code" : "AT",
+        "nonEUMemberState" : false
+      },
+      "name" : {
+        "texts" : [ {
+          "language" : {
+            "isoCode" : "de",
+            "name" : "German"
+          },
+          "text" : "Haemo Pharma GmbH",
+          "allLanguagesApplicable" : null
+        } ]
+      },
+      "abbreviatedName" : {
+        "texts" : [ {
+          "language" : null,
+          "text" : "Haemo Pharma",
+          "allLanguagesApplicable" : true
+        } ]
+      },
+      "europeanVatNumberApplicable" : true,
+      "europeanVatNumber" : "ATU63012867",
+      "eudamedIdentifier" : "AT-AR-000001505",
+      "tradeRegister" : "10090046",
+      "eori" : "ATEOS1000009853",
+      "organizationIdentificationDocuments" : [ ],
+      "authorisedRepresentatives" : null,
+      "competentAuthorityResponsibility" : null,
+      "telephone" : "+43 2682 22 700 0",
+      "electronicMail" : "office@haemo-pharma.at",
+      "website" : "www.haemo-pharma.at",
+      "actorAddress" : {
+        "streetName" : "Bankgasse ",
+        "streetInfoApplicable" : true,
+        "buildingNumber" : "3",
+        "complement" : null,
+        "postbox" : null,
+        "gps" : null,
+        "cityName" : "Eisenstadt",
+        "postalZone" : "7000",
+        "country" : {
+          "name" : "Austria",
+          "type" : "EU_MEMBER_STATE",
+          "iso2Code" : "AT",
+          "nonEUMemberState" : false
+        }
+      },
+      "validatorName" : "Gesundheit Österreich GmbH",
+      "validatorUuid" : "eef6d5a7-0906-438f-8050-4661ca1bbe4f",
+      "validatorType" : {
+        "code" : "refdata.actor-type.competent-authority",
+        "srnCode" : "CA",
+        "category" : "SUPERVISING_ENTITY"
+      },
+      "validatorSrn" : "AT-CA-067",
+      "validatorAddress" : {
+        "streetName" : "Stubenring",
+        "streetInfoApplicable" : true,
+        "buildingNumber" : "6",
+        "complement" : null,
+        "postbox" : null,
+        "gps" : null,
+        "cityName" : "Vienna",
+        "postalZone" : "1010",
+        "country" : {
+          "name" : "Austria",
+          "type" : "EU_MEMBER_STATE",
+          "iso2Code" : "AT",
+          "nonEUMemberState" : false
+        }
+      },
+      "validatorEmail" : "eudamed@goeg.at",
+      "validatorTelephone" : "+43 1 515 61-0",
+      "regulatoryComplianceResponsibles" : [ {
+        "firstName" : "Markus",
+        "familyName" : "Mateyka",
+        "electronicMail" : "mm@haemo-pharma.at",
+        "telephone" : "+43 2682 22 700 10",
+        "position" : "General Manager",
+        "geographicalAddress" : {
+          "streetName" : "Bankgasse ",
+          "streetInfoApplicable" : true,
+          "buildingNumber" : "3",
+          "complement" : null,
+          "postbox" : null,
+          "gps" : null,
+          "cityName" : "Eisenstadt",
+          "postalZone" : "7000",
+          "country" : {
+            "name" : "Austria",
+            "type" : "EU_MEMBER_STATE",
+            "iso2Code" : "AT",
+            "nonEUMemberState" : false
+          }
+        }
+      } ],
+      "legislationLinks" : null,
+      "latestSubsidiary" : null,
+      "certificates" : null,
+      "latestVersion" : true,
+      "versionNumber" : 2,
+      "versionState" : {
+        "code" : "refdata.eudamed-entity-version-status.registered"
+      },
+      "lastUpdateDate" : "2024-05-22T11:11:01.012",
+      "accuracyData" : [ {
+        "uuid" : "0e501623-c7ec-4570-a204-e87438b4d754",
+        "accuracyDate" : "2024-05-22",
+        "new" : false
+      } ],
+      "lastAccuracyDate" : "2024-05-22"
+    }
+  }
