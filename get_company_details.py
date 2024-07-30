@@ -170,16 +170,16 @@ async def process_company(session, company):
         await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
 
 async def fetch_companies():
-    response = supabase.table('eudamed_companies')\
+    return supabase.table('eudamed_companies')\
         .select('*')\
         .neq("scraping_status", "GOT_COMPANY_DETAILS")\
         .execute()
-    return response.data
 
 async def process_all_companies():
     async with aiohttp.ClientSession() as session:
         while True:
-            companies = await asyncio.to_thread(fetch_companies)
+            response = await fetch_companies()
+            companies = response.data
             if not companies:
                 break
             
