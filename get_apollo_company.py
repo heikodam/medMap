@@ -19,25 +19,10 @@ APOLLO_API_URL = "https://api.apollo.io/v1/organizations/enrich"
 async def fetch_companies(batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
         .select("id", "name", "website") \
-        .eq("scraping_status", "CLEANED_WEBSITE") \
+        .eq("scraping_status", "GOT_COMPANY_DETAILS") \
         .eq("iso_code", "DE") \
         .range(from_, from_ + batch_size - 1) \
         .execute()
-
-# async def fetch_apollo_data(session, domain):
-#     headers = {
-#         "Content-Type": "application/json",
-#         "Cache-Control": "no-cache",
-#         "X-Api-Key": APOLLO_API_KEY
-#     }
-#     params = {"domain": domain}
-    
-#     async with session.get(APOLLO_API_URL, headers=headers, params=params) as response:
-#         if response.status == 200:
-#             return await response.json()
-#         else:
-#             print(f"Failed to fetch data for {domain}. Status: {response.status}")
-#             return None
 
 
 async def fetch_apollo_data(session, domain):
@@ -158,6 +143,8 @@ async def process_company(session, company):
 
     apollo_data = await fetch_apollo_data(session, company['website'])
 
+    print("Apollo data: ", apollo_data)
+
 
     if apollo_data:
         await insert_apollo_company(company['id'], apollo_data)
@@ -183,15 +170,17 @@ async def process_all_companies():
             print("No more companies found.")
             break
         
+        print(f"Processing {len(companies.data)} companies...")
         await process_companies_batch(companies.data)
         
         total_processed += len(companies.data)
-        # from_ += batch_size
         
         # print(f"Processed {total_processed} companies so far.")
         
         if len(companies.data) < batch_size:
             break
+        
+        break   
         
         # wait 1 sec
         await asyncio.sleep(2)
