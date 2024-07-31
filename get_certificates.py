@@ -1,105 +1,68 @@
+import os
+import uuid
+import requests
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
+# Load environment variables
+load_dotenv()
 
+# Supabase setup
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
 
+# EUDAMED API URL
+base_url = "https://ec.europa.eu/tools/eudamed/api/certificates/search/"
 
+def fetch_certificates(page=0, page_size=300):
+    params = {
+        "page": page,
+        "pageSize": page_size,
+        "size": page_size,
+        "iso2Code": "en",
+        "entityTypeCode": "certificate.certificates",
+        "languageIso2Code": "en"
+    }
+    response = requests.get(base_url, params=params)
+    return response.json()
 
+def insert_certificate(certificate, counter):
+    eudamed_uuid = certificate['uuid']
+    
+    # Clear the terminal
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    # Print certificate number and counter
+    print(f"Certificate {counter}: {certificate['certificateNumber']}")
+    
+    # Check if the certificate already exists
+    existing = supabase.table('eudamed_certificates').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
+    
+    if not existing.data:
+        new_record = {
+            "id": str(uuid.uuid4()),
+            "eudamed_uuid": eudamed_uuid,
+            "certificate_number": certificate['certificateNumber'],
+            "scraping_status": "GOT_CERTIFICATE_ID"
+        }
+        supabase.table('eudamed_certificates').insert(new_record).execute()
 
+def process_certificates():
+    page = 0
+    counter = 1
+    while True:
+        data = fetch_certificates(page)
+        
+        for certificate in data['content']:
+            insert_certificate(certificate, counter)
+            counter += 1
+        
+        if data['last']:
+            break
+        
+        page += 1
 
-# CREATE TABLE eudamed_notifiedBodies (
-#     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-#     eudamed_uuid UUID,
-#     version_number INTEGER,
-#     version_state_code TEXT,
-#     latest_version BOOLEAN,
-#     last_update_date TIMESTAMP,
-#     name TEXT,
-#     actor_type_code TEXT,
-#     actor_type_srn_code TEXT,
-#     actor_type_category TEXT,
-#     status_code TEXT,
-#     status_from_date DATE,
-#     country_iso2_code TEXT,
-#     country_name TEXT,
-#     country_type TEXT,
-#     geographical_address TEXT,
-#     electronic_mail TEXT,
-#     telephone TEXT,
-#     srn TEXT
-# );
-
-# CREATE TABLE certificate_documents (
-#     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-#     eudamed_uuid UUID,
-#     certificate_id UUID REFERENCES eudamed_certificates(id),
-#     original_file_name TEXT,
-#     file_content_type TEXT,
-#     file_size INTEGER,
-#     temp_file_name TEXT,
-#     type_code TEXT,
-#     type_access_type TEXT,
-#     languages TEXT[],
-#     reference_doc_id TEXT,
-#     primary_module_name TEXT,
-#     indexed BOOLEAN,
-#     virus_check INTEGER
-# );
-
-# CREATE TABLE certificate_scopes (
-#     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-#     eudamed_uuid UUID,
-#     certificate_id UUID REFERENCES eudamed_certificates(id),
-#     type TEXT,
-#     unregistered_device TEXT,
-#     is_preceding BOOLEAN,
-#     quality_procedure_scope_type TEXT,
-#     custom_made_class_iii_implantable TEXT,
-#     description TEXT,
-#     basic_udi_data TEXT,
-#     name TEXT,
-#     reference_catalogue_number TEXT,
-#     device_group_identification TEXT,
-#     risk_classes TEXT[],
-#     device_characteristics TEXT[],
-#     system_procedure_pack TEXT
-# );
-
-# CREATE TABLE eudamed_certificates (
-#     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-#     eudamed_uuid UUID,
-#     company_id UUID REFERENCES eudamed_companies(id),
-#     ulid TEXT,
-#     certificate_number TEXT,
-#     revision_number TEXT,
-#     issue_date DATE,
-#     decision_date DATE,
-#     starting_validity_date DATE,
-#     expiry_date DATE,
-#     certificate_id TEXT,
-#     status_change_reasons TEXT,
-#     applicable_legislation_code TEXT,
-#     applicable_legislation_legacy_directive BOOLEAN,
-#     type_code TEXT,
-#     status_code TEXT,
-#     notified_body_id UUID,
-#     conditions_applicable BOOLEAN,
-#     animal_tissues BOOLEAN,
-#     human_tissues BOOLEAN,
-#     sterile BOOLEAN,
-#     in_vitro_diagnostics BOOLEAN,
-#     intended_medical_purpose BOOLEAN,
-#     cecp_applicable BOOLEAN,
-#     decision_comments TEXT,
-#     other_decision_reasons TEXT,
-#     mos_outside_eudamed TEXT,
-#     ivdr_mechanism_of_scrutiny TEXT,
-#     mechanism_of_scrutiny_enabled BOOLEAN,
-#     sscp_enabled BOOLEAN,
-#     starting_decision_applicability_date DATE,
-#     qms_mos_type TEXT,
-#     version_date TIMESTAMP,
-#     version_number INTEGER,
-#     version_state_code TEXT,
-#     latest_version BOOLEAN,
-#     discarded_date DATE,
-#     scraping_status TEXT
-# );
+# Run the script
+process_certificates()
+print("Finished processing all certificates.")
