@@ -26,9 +26,9 @@ def bing_search(query):
     return [result['url'] for result in search_results.get("webPages", {}).get("value", [])]
 
 def verify_website_with_llm(company_name, urls):
-    print(f"Verifying websites for {company_name}: {urls}")
+    # print(f"Verifying websites for {company_name}: {urls}")
     urls_str = "\n".join(urls)
-    prompt = f"Given the company name '{company_name}' and the following list of URLs:\n\n{urls_str}\n\nWhich URL is most likely to be the official website for the company? If none of them seem to be the official website, respond with 'N/A'. Please provide only the domain (e.g., 'example.com') or 'N/A' as your answer, with no additional explanation."
+    prompt = f"Given the company name '{company_name}' and the following list of URLs:\n\n{urls_str}\n\nWhich URL is most likely to be the official website for the company? If none of them seem to be the official website, respond with 'N/A'. Please provide only the domain (with the format 'example.com' (no www and no http)) or 'N/A' as your answer, with no additional explanation."
     
     response = openai.chat.completions.create(
         model="gpt-4",
@@ -78,8 +78,8 @@ def fetch_and_update_company_websites():
                 supabase.table("eudamed_companies").update({
                     "scraping_status": "SEARCHED_FOR_WEBSITE"
                 }).eq("id", company['id']).execute()
-        
-        offset += batch_size
+            
+            
 
 if __name__ == "__main__":
     fetch_and_update_company_websites()
