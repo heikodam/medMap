@@ -144,14 +144,22 @@ async def process_company(session, company):
 
     apollo_data = await fetch_apollo_data(session, company['website'])
 
-
-
     if apollo_data:
         await insert_apollo_company(company['id'], apollo_data)
-        await update_eudamed_company_status(company['id'])
     else:
-        await update_eudamed_company_status(company['id']) # commented because if apollo credits run out it returns None
-        print(f"No Apollo data found for company {company['id']}")
+        # Create a minimal entry in the apollo_companies table
+        minimal_data = {
+            "eudamed_company_id": company['id'],
+            "website_url": company['website'],
+            "json_dump": {"message": "No data found by Apollo"}
+        }
+        result = supabase.table('apollo_companies').insert(minimal_data).execute()
+        if len(result.data) > 0:
+            print(f"Inserted minimal Apollo data for company {company['id']} - {company['website']}")
+        else:
+            print(f"Failed to insert minimal Apollo data for company {company['id']}")
+
+    await update_eudamed_company_status(company['id'])
 
 async def process_companies_batch(companies):
     async with aiohttp.ClientSession() as session:
