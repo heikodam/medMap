@@ -59,6 +59,9 @@ async def update_certificate(certificate_id, details):
 
     company_id = await get_company_id(safe_get(details, "manufacturer", "uuid"))
 
+    # print certificate id
+    print(f"Certificate ID: {certificate_id}")
+
     update_data = {
         "scraping_status": "GOT_CERTIFICATE_DETAILS",
         "company_id": company_id,
@@ -117,8 +120,8 @@ async def update_certificate_scopes(certificate_id, scopes):
             "name": scope.get("name"),
             "reference_catalogue_number": scope.get("referenceCatalogueNumber"),
             "device_group_identification": scope.get("deviceGroupIdentification"),
-            "risk_classes": [rc.get("code") for rc in scope.get("riskClasses", [])],
-            "device_characteristics": [dc.get("code") for dc in scope.get("deviceCharacteristics", [])],
+            "risk_classes": [rc.get("code") for rc in scope.get("riskClasses", [])] if scope.get("riskClasses") else None,
+            "device_characteristics": [dc.get("code") for dc in scope.get("deviceCharacteristics", [])] if scope.get("deviceCharacteristics") else None,
             "system_procedure_pack": scope.get("systemProcedurePack"),
         }
         supabase.table('certificate_scopes').insert(scope_data).execute()
@@ -181,7 +184,7 @@ async def process_certificates_batch(certificates):
         await asyncio.gather(*tasks)
 
 async def process_all_certificates():
-    batch_size = 50
+    batch_size = 1
     from_ = 0
     total_processed = 0
 
@@ -201,6 +204,8 @@ async def process_all_certificates():
         
         if len(certificates.data) < batch_size:
             break
+        
+        break
         
     print(f"Finished processing all certificates. Total processed: {total_processed}")
 
