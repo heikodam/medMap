@@ -20,7 +20,7 @@ async def fetch_companies(iso_code, batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
         .select("id", "name", "website") \
         .eq("iso_code", iso_code) \
-        .not_("id", "in", supabase.table('apollo_companies').select("eudamed_company_id")) \
+        .neq("id", supabase.table('apollo_companies').select("eudamed_company_id")) \
         .range(from_, from_ + batch_size - 1) \
         .execute()
 
