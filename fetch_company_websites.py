@@ -23,19 +23,12 @@ def bing_search(query):
     response = requests.get(BING_SEARCH_V7_ENDPOINT, headers=headers, params=params)
     response.raise_for_status()
     search_results = response.json()
-    return search_results.get("webPages", {}).get("value", [])
+    return [result['url'] for result in search_results.get("webPages", {}).get("value", [])]
 
-def extract_domain(url):
-    from urllib.parse import urlparse
-    parsed_url = urlparse(url)
-    domain = parsed_url.netloc
-    if domain.startswith('www.'):
-        domain = domain[4:]
-    return domain
-
-def verify_website_with_llm(company_name, website):
-    print(f"Verifying website for {company_name}: {website}")
-    prompt = f"Does the website '{website}' appear to be the correct official website for the company '{company_name}'? Please respond with 'Yes' or 'No' and a brief explanation."
+def verify_website_with_llm(company_name, urls):
+    print(f"Verifying websites for {company_name}: {urls}")
+    urls_str = "\n".join(urls)
+    prompt = f"Given the company name '{company_name}' and the following list of URLs:\n\n{urls_str}\n\nWhich URL is most likely to be the official website for the company? If none of them seem to be the official website, respond with 'N/A'. Please provide only the domain (e.g., 'example.com') or 'N/A' as your answer, with no additional explanation."
     
     response = openai.chat.completions.create(
         model="gpt-4",
@@ -46,7 +39,7 @@ def verify_website_with_llm(company_name, website):
     )
 
     content = response.choices[0].message.content.strip()
-    return content.lower().startswith("yes")
+    return content if content.lower() != 'n/a' else None
 
 def fetch_and_update_company_websites():
     batch_size = 1000
@@ -65,16 +58,16 @@ def fetch_and_update_company_websites():
             search_results = bing_search(query)
 
             if search_results:
-                potential_website = extract_domain(search_results[0]['url'])
+                # Verify the websites with LLM
+                verified_website = verify_website_with_llm(company_name, search_results)
                 
-                # Verify the website with LLM
-                if verify_website_with_llm(company_name, potential_website):
+                if verified_website:
                     # Update the company record in Supabase
                     supabase.table("eudamed_companies").update({
-                        "website": potential_website,
+                        "website": verified_website,
                         "scraping_status": "SEARCHED_FOR_WEBSITE"
                     }).eq("id", company['id']).execute()
-                    print(f"Updated {company_name} with website: {potential_website}")
+                    print(f"Updated {company_name} with website: {verified_website}")
                 else:
                     print(f"Could not verify website for {company_name}")
                     supabase.table("eudamed_companies").update({
@@ -85,10 +78,8 @@ def fetch_and_update_company_websites():
                 supabase.table("eudamed_companies").update({
                     "scraping_status": "SEARCHED_FOR_WEBSITE"
                 }).eq("id", company['id']).execute()
-            
-            break
-
-        break
+        
+        offset += batch_size
 
 if __name__ == "__main__":
     fetch_and_update_company_websites()
