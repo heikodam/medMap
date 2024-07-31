@@ -34,6 +34,7 @@ def extract_domain(url):
     return domain
 
 def verify_website_with_llm(company_name, website):
+    print(f"Verifying website for {company_name}: {website}")
     prompt = f"Does the website '{website}' appear to be the correct official website for the company '{company_name}'? Please respond with 'Yes' or 'No' and a brief explanation."
     
     response = openai.chat.completions.create(
@@ -84,8 +85,10 @@ def fetch_and_update_company_websites():
                 supabase.table("eudamed_companies").update({
                     "scraping_status": "SEARCHED_FOR_WEBSITE"
                 }).eq("id", company['id']).execute()
+            
+            break
 
-        offset += batch_size
+        break
 
 if __name__ == "__main__":
     fetch_and_update_company_websites()
