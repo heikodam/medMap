@@ -16,11 +16,11 @@ supabase: Client = create_client(url, key)
 APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY")
 APOLLO_API_URL = "https://api.apollo.io/v1/organizations/enrich"
 
-async def fetch_companies(batch_size=1000, from_=0):
+async def fetch_companies(iso_code, batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
         .select("id", "name", "website") \
-        .eq("scraping_status", "GOT_COMPANY_DETAILS") \
-        .eq("iso_code", "DE") \
+        .eq("iso_code", iso_code) \
+        .not_("id", "in", supabase.table('apollo_companies').select("eudamed_company_id")) \
         .range(from_, from_ + batch_size - 1) \
         .execute()
 
@@ -158,13 +158,13 @@ async def process_companies_batch(companies):
         tasks = [process_company(session, company) for company in companies]
         await asyncio.gather(*tasks)
 
-async def process_all_companies():
+async def process_all_companies(iso_code):
     batch_size = 1
     from_ = 0
     total_processed = 0
 
     while True:
-        companies = await fetch_companies(batch_size, from_)
+        companies = await fetch_companies(iso_code, batch_size, from_)
         
         if not companies.data:
             print("No more companies found.")
@@ -191,4 +191,4 @@ async def process_all_companies():
     print(f"Finished processing all companies. Total processed: {total_processed}")
 
 # Run the script
-asyncio.run(process_all_companies())
+asyncio.run(process_all_companies("DE"))  # Replace "DE" with the desired country code
