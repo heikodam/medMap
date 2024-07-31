@@ -16,11 +16,12 @@ supabase: Client = create_client(url, key)
 APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY")
 APOLLO_API_URL = "https://api.apollo.io/v1/organizations/enrich"
 
+
 async def fetch_companies(iso_code, batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
-        .select("id", "name", "website") \
+        .select("id, name, website, apollo_companies!left(eudamed_company_id)") \
         .eq("iso_code", iso_code) \
-        .neq("id", supabase.table('apollo_companies').select("eudamed_company_id")) \
+        .is_("apollo_companies.eudamed_company_id", "null") \
         .range(from_, from_ + batch_size - 1) \
         .execute()
 
@@ -38,6 +39,8 @@ async def fetch_apollo_data(session, domain):
 
     for attempt in range(max_retries):
         async with session.get(APOLLO_API_URL, headers=headers, params=params) as response:
+            # prin headers
+            print(response.headers)
             if response.status == 200:
                 return await response.json()
             elif response.status == 429:
@@ -67,8 +70,6 @@ async def fetch_apollo_data(session, domain):
 async def insert_apollo_company(eudamed_company_id, apollo_data):
     organization = apollo_data.get('organization', {})
 
-
-    
     # Prepare the data for insertion
     insert_data = {
         "eudamed_company_id": eudamed_company_id,
@@ -143,7 +144,6 @@ async def process_company(session, company):
 
     apollo_data = await fetch_apollo_data(session, company['website'])
 
-    print("Apollo data: ", apollo_data)
 
 
     if apollo_data:
