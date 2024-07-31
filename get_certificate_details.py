@@ -49,6 +49,16 @@ async def get_company_id(manufacturer_uuid):
         return result.data[0]['id']
     return None
 
+async def get_notified_body_id(notified_body_uuid):
+    result = supabase.table('eudamed_notifiedBodies') \
+        .select("id") \
+        .eq("eudamed_uuid", notified_body_uuid) \
+        .execute()
+    
+    if result.data:
+        return result.data[0]['id']
+    return None
+
 async def update_certificate(certificate_id, details):
     def safe_get(d, *keys):
         for key in keys:
@@ -58,6 +68,7 @@ async def update_certificate(certificate_id, details):
         return d
 
     company_id = await get_company_id(safe_get(details, "manufacturer", "uuid"))
+    notified_body_id = await get_notified_body_id(safe_get(details, "notifiedBody", "uuid"))
 
     # print certificate id
     print(f"Certificate ID: {certificate_id}")
@@ -65,6 +76,7 @@ async def update_certificate(certificate_id, details):
     update_data = {
         "scraping_status": "GOT_CERTIFICATE_DETAILS",
         "company_id": company_id,
+        "notified_body_id": notified_body_id,
         "ulid": safe_get(details, "ulid"),
         "certificate_number": safe_get(details, "certificateNumber"),
         "revision_number": safe_get(details, "revisionNumber"),
