@@ -1,6 +1,10 @@
 import os
+import requests
 import asyncio
 import aiohttp
+import random
+import string
+import uuid
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -8,23 +12,47 @@ from supabase import create_client, Client
 load_dotenv()
 
 # Supabase setup
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
+supabase_url: str = os.environ.get("SUPABASE_URL")
+supabase_key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Apollo API setup
 APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY")
 APOLLO_API_URL = "https://api.apollo.io/v1/organizations/enrich"
 
 
+
+async def fetch_sql(iso_code, batch_size=1000, from_=0):
+    # convert this into a query
+# SELECT
+#   e.id,
+#   e.name,
+#   e.website,
+#   e.eudamed_uuid
+# FROM
+#   eudamed_companies e
+# WHERE
+#   e.iso_code = 'DE'
+#   AND NOT EXISTS (
+#     SELECT
+#       1
+#     FROM
+#       apollo_companies ac
+#     WHERE
+#       e.id = ac.eudamed_company_id
+#   );
+
+
+    
 async def fetch_companies(iso_code, batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
         .select("id, name, website, apollo_companies!left(eudamed_company_id)") \
         .eq("iso_code", iso_code) \
-        .is_("apollo_companies.eudamed_company_id", "null") \
+        .eq("eudamed_type", "MF") \
+        .not_.is_("website", "null") \
+        .is_("apollo_companies.eudamed_company_id", None) \
         .range(from_, from_ + batch_size - 1) \
-        .execute()
-
+        .execute() 
 
 async def fetch_apollo_data(session, domain):
     headers = {
@@ -39,8 +67,6 @@ async def fetch_apollo_data(session, domain):
 
     for attempt in range(max_retries):
         async with session.get(APOLLO_API_URL, headers=headers, params=params) as response:
-            # prin headers
-            print(response.headers)
             if response.status == 200:
                 return await response.json()
             elif response.status == 429:
@@ -134,12 +160,24 @@ async def update_eudamed_company_status(company_id):
         .eq('id', company_id) \
         .execute()
 
+async def check_apollo_company_exists(eudamed_company_id):
+    result = supabase.table('apollo_companies') \
+        .select('id') \
+        .eq('eudamed_company_id', eudamed_company_id) \
+        .execute()
+    
+    return len(result.data) > 0
+
 async def process_company(session, company):
     # print(f"Processing company {company['name']} - {company['website']}")
 
+    if await check_apollo_company_exists(company['id']):
+        print(f"{company['name']} already exists in Apollo. Skipping.")
+        return
+
     if not company['website']:
         await update_eudamed_company_status(company['id'])
-        print(f"Company {company['name']} has no website. Skipping.")
+        print(f"{company['name']} has no website. Skipping.")
         return
 
     apollo_data = await fetch_apollo_data(session, company['website'])
@@ -161,6 +199,9 @@ async def process_company(session, company):
 
     await update_eudamed_company_status(company['id'])
 
+    # wait 2 sec - this is here so that apollo rate limiting is not triggered & it is here not in the process_all_companies so that it can first check if the company is already in the apollo_companies table
+    await asyncio.sleep(2)
+
 async def process_companies_batch(companies):
     async with aiohttp.ClientSession() as session:
         tasks = [process_company(session, company) for company in companies]
@@ -173,12 +214,11 @@ async def process_all_companies(iso_code):
 
     while True:
         companies = await fetch_companies(iso_code, batch_size, from_)
-        
+
         if not companies.data:
             print("No more companies found.")
             break
         
-        print(f"Processing {len(companies.data)} companies...")
         await process_companies_batch(companies.data)
         
         total_processed += len(companies.data)
@@ -188,10 +228,10 @@ async def process_all_companies(iso_code):
         if len(companies.data) < batch_size:
             break
         
-        break   
+        from_ += batch_size
         
-        # wait 1 sec
-        await asyncio.sleep(2)
+        
+        
         
         
         

@@ -50,7 +50,7 @@ async def get_company_id(manufacturer_uuid):
     return None
 
 async def get_notified_body_id(notified_body_uuid):
-    result = supabase.table('eudamed_notifiedBodies') \
+    result = supabase.table('eudamed_notified_bodies') \
         .select("id") \
         .eq("eudamed_uuid", notified_body_uuid) \
         .execute()
@@ -59,13 +59,15 @@ async def get_notified_body_id(notified_body_uuid):
         return result.data[0]['id']
     return None
 
-async def update_certificate(certificate_id, details):
-    def safe_get(d, *keys):
+def safe_get(d, *keys):
         for key in keys:
             if d is None or not isinstance(d, dict):
                 return None
             d = d.get(key)
         return d
+
+async def update_certificate(certificate_id, details):
+    
 
     company_id = await get_company_id(safe_get(details, "manufacturer", "uuid"))
     notified_body_id = await get_notified_body_id(safe_get(details, "notifiedBody", "uuid"))
@@ -110,6 +112,7 @@ async def update_certificate(certificate_id, details):
         "version_state_code": safe_get(details, "versionState", "code"),
         "latest_version": safe_get(details, "latestVersion"),
         "discarded_date": safe_get(details, "discardedDate"),
+        "json_dump": details,
     }
     
     # Remove None values from the update dictionary
@@ -135,6 +138,7 @@ async def update_certificate_scopes(certificate_id, scopes):
             "risk_classes": [rc.get("code") for rc in scope.get("riskClasses", [])] if scope.get("riskClasses") else None,
             "device_characteristics": [dc.get("code") for dc in scope.get("deviceCharacteristics", [])] if scope.get("deviceCharacteristics") else None,
             "system_procedure_pack": scope.get("systemProcedurePack"),
+            "json_dump": scope,
         }
         supabase.table('certificate_scopes').insert(scope_data).execute()
 
@@ -154,6 +158,7 @@ async def update_certificate_documents(certificate_id, documents):
             "primary_module_name": document.get("primaryModuleName"),
             "indexed": document.get("indexed"),
             "virus_check": document.get("virusCheck"),
+            "json_dump": document,
         }
         supabase.table('certificate_documents').insert(document_data).execute()
 
@@ -168,7 +173,8 @@ async def update_notified_body(notified_body):
         "actor_type_code": notified_body.get("actorType", {}).get("code"),
         "actor_type_srn_code": notified_body.get("actorType", {}).get("srnCode"),
         "actor_type_category": notified_body.get("actorType", {}).get("category"),
-        "status_code": notified_body.get("status", {}).get("code"),
+        # "status_code": notified_body.get("status", {}).get("code"),
+        "status_code": safe_get(notified_body, "status", "code"),
         "status_from_date": notified_body.get("statusFromDate"),
         "country_iso2_code": notified_body.get("countryIso2Code"),
         "country_name": notified_body.get("countryName"),
@@ -177,16 +183,23 @@ async def update_notified_body(notified_body):
         "electronic_mail": notified_body.get("electronicMail"),
         "telephone": notified_body.get("telephone"),
         "srn": notified_body.get("srn"),
+        "json_dump": notified_body,
     }
-    supabase.table('eudamed_notifiedBodies').upsert(notified_body_data, on_conflict="eudamed_uuid").execute()
+
+    # Remove None values from the update dictionary
+    notified_body_data = {k: v for k, v in notified_body_data.items() if v is not None}
+
+    # print("Notified body data:", notified_body_data)
+
+    supabase.table('eudamed_notified_bodies').upsert(notified_body_data, on_conflict="eudamed_uuid",).execute()
 
 async def process_certificate(session, certificate):
     details = await fetch_certificate_details(session, certificate['eudamed_uuid'])
     if details is not None:
+        await update_notified_body(details.get('notifiedBody', {}))
         await update_certificate(certificate['id'], details)
         await update_certificate_scopes(certificate['id'], details.get('scopes', []))
         await update_certificate_documents(certificate['id'], details.get('documents', []))
-        await update_notified_body(details.get('notifiedBody', {}))
     else:
         print(f"Skipping update for certificate {certificate['id']} due to connection issues.")
 
@@ -196,7 +209,7 @@ async def process_certificates_batch(certificates):
         await asyncio.gather(*tasks)
 
 async def process_all_certificates():
-    batch_size = 1
+    batch_size = 10
     from_ = 0
     total_processed = 0
 
@@ -210,14 +223,13 @@ async def process_all_certificates():
         await process_certificates_batch(certificates.data)
         
         total_processed += len(certificates.data)
-        from_ += batch_size
+        # from_ += batch_size
         
         print(f"Processed {total_processed} certificates so far.")
         
         if len(certificates.data) < batch_size:
             break
         
-        break
         
     print(f"Finished processing all certificates. Total processed: {total_processed}")
 
