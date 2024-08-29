@@ -22,7 +22,7 @@ APOLLO_API_URL = "https://api.apollo.io/v1/organizations/enrich"
 
 
 
-async def fetch_sql(iso_code, batch_size=1000, from_=0):
+# async def fetch_sql(iso_code, batch_size=1000, from_=0):
     # convert this into a query
 # SELECT
 #   e.id,
@@ -83,8 +83,9 @@ async def fetch_apollo_data(session, domain):
                     return None
             else:
                 # stop the program if this happens and print the response status and headers
-                print(f"Failed to fetch data for {domain}. Status: {response.status}")
-                print(response.headers)
+                print(f"Else - Failed to fetch data for {domain}. Status: {response.status}")
+                # print(response.headers)
+                print(response)
 
                 # stop the program
                 exit(1)
@@ -239,4 +240,4 @@ async def process_all_companies(iso_code):
     print(f"Finished processing all companies. Total processed: {total_processed}")
 
 # Run the script
-asyncio.run(process_all_companies("DE"))  # Replace "DE" with the desired country code
+asyncio.run(process_all_companies("FR"))  

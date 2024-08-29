@@ -31,7 +31,7 @@ def verify_website_with_llm(company_name, urls):
     prompt = f"Given the company name '{company_name}' and the following list of URLs:\n\n{urls_str}\n\nWhich URL is most likely to be the official website for the company? If none of them seem to be the official website, respond with 'N/A'. Please provide only the domain (with the format 'example.com' (no www and no http)) or 'N/A' as your answer, with no additional explanation."
     
     response = openai.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that verifies company websites."},
             {"role": "user", "content": prompt}
@@ -47,7 +47,7 @@ def fetch_and_update_company_websites():
 
     while True:
         # Fetch companies from Supabase
-        companies = supabase.table("eudamed_companies").select("*").eq("iso_code", "DE").is_("website", "null").neq("scraping_status", "SEARCHED_FOR_WEBSITE").range(offset, offset + batch_size - 1).execute()
+        companies = supabase.table("eudamed_companies").select("*").eq("iso_code", "CH").is_("website", "null").neq("scraping_status", "SEARCHED_FOR_WEBSITE").range(offset, offset + batch_size - 1).execute()
         
         if not companies.data:
             break  # No more companies to process
