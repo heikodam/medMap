@@ -17,7 +17,8 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 def fetch_companies(page=0, page_size=1000):
     return supabase.table('eudamed_companies').select('*')\
-        .or_('scraping_status.eq.GOT_COMPANY_DEVICES,scraping_status.eq.GOT_EMPL_WEBSITE')\
+        .neq("scraping_status", "CLEANED_WEBSITE") \
+        .eq("iso_code", "AT") \
         .range(page*page_size, (page+1)*page_size-1)\
         .execute()
 
@@ -58,17 +59,14 @@ def process_company(company):
     print(f"Processed company: {company['name']} - Old: {company['website']} New Website: {cleaned_website if 'website' in update_data else 'N/A'}")
 
 def process_all_companies():
-    page = 0
     while True:
-        companies = fetch_companies(page)
+        companies = fetch_companies(0)
         if not companies.data:
             break
         
         for company in companies.data:
             process_company(company)
-
         
-        page += 1
 
     
     print("Finished processing all companies.")

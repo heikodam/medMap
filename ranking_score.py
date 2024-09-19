@@ -17,8 +17,8 @@ base_url = "https://ec.europa.eu/tools/eudamed/api/devices/basicUdiData/udiDiDat
 
 async def fetch_companies(batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
-        .select("id", "name") \
-        .eq("iso_code", "DE") \
+        .select("id", "name", "empl_website") \
+        .eq("iso_code", "FR") \
         .eq("eudamed_type", "MF") \
         .neq("scraping_status", "UPDATED_RANKING_SCORE") \
         .range(from_, from_ + batch_size - 1) \
@@ -31,14 +31,11 @@ async def update_company(id, update_data):
     details = {k: v for k, v in update_data.items() if v is not None}
     
     supabase.table('eudamed_companies').update(details).eq('id', id).execute()
-
-
 async def fetch_comp_products(uuid):
     return supabase.table('eudamed_products') \
-        .select("id", "risk_class") \
+        .select("id", "risk_class", "medicinal_product", "human_tissues", "animal_tissues", "human_product", "administering_medicine") \
         .eq("company_id", uuid) \
-        .eq("active", True) \
-        .eq("manufacturer_latest_version", True) \
+        .or_("legislation.eq.refdata.applicable-legislation.mdr,legislation.eq.refdata.applicable-legislation.mdd") \
         .execute()
 
 async def fetch_apollo_company(company):
@@ -50,31 +47,69 @@ async def fetch_apollo_company(company):
 async def ranking_score_products(company):
     products = await fetch_comp_products(company['id'])
 
-    product_risk_classes = {
-        "i": 0,
-        "iia": 0,
-        "iib": 0,
-        "iii": 0,
+    product_totals_score = {
+        "i": 0, # 1 max 10
+        "iia": 0, # 5 max 20
+        "iib": 0, # 7 max 20
+        "iii": 0, # 10 max 30
+        "medicinal_product": 0, # 1 max 5
+        "human_tissues": 0, # 5 max 20
+        "animal_tissues": 0, # 5 max 20
+        "human_product": 0, # 5 max 20
+        "administering_medicine": 0, # 1 max 5
     }
 
+
     for product in products.data:
-         match product['risk_class']:
-            case "refdata.risk-class.class-a":
-                product_risk_classes["i"] += 1
+
+        # risk class
+        match product['risk_class']:
+            case "refdata.risk-class.class-i":
+                product_totals_score["i"] += 1
             case "refdata.risk-class.class-iia":
-                product_risk_classes["iia"] += 1
+                product_totals_score["iia"] += 1
             case "refdata.risk-class.class-iib":
-                product_risk_classes["iib"] += 1
+                product_totals_score["iib"] += 1
             case "refdata.risk-class.class-iii":
-                product_risk_classes["iii"] += 1
+                product_totals_score["iii"] += 1
             case _:
                 pass
+        
+        # medicinal product
+        if product['medicinal_product']:
+            product_totals_score["medicinal_product"] += 1
+        
+        # human tissues
+        if product['human_tissues']:
+            product_totals_score["human_tissues"] += 1
+        
+        # animal tissues
+        if product['animal_tissues']:
+            product_totals_score["animal_tissues"] += 1
+        
+        # human product
+        if product['human_product']:
+            product_totals_score["human_product"] += 1
+        
+        # administering medicine
+        if product['administering_medicine']:
+            product_totals_score["administering_medicine"] += 1
+        
 
+        
+
+
+    # Set the may limit and score 
     ranking_score = 0
-    ranking_score += min(product_risk_classes["i"] * 1, 10)
-    ranking_score += min(product_risk_classes["iia"] * 5, 20)
-    ranking_score += min(product_risk_classes["iib"] * 7, 20)
-    ranking_score += min(product_risk_classes["iii"] * 10, 30)
+    ranking_score += min(product_totals_score["i"] * 1, 10) # risk class i
+    ranking_score += min(product_totals_score["iia"] * 5, 20) # risk class iia
+    ranking_score += min(product_totals_score["iib"] * 7, 20) # risk class iib
+    ranking_score += min(product_totals_score["iii"] * 10, 30) # risk class iii
+    ranking_score += min(product_totals_score["medicinal_product"] * 1, 5) # medicinal product
+    ranking_score += min(product_totals_score["human_tissues"] * 5, 20) # human tissues
+    ranking_score += min(product_totals_score["animal_tissues"] * 5, 20) # animal tissues
+    ranking_score += min(product_totals_score["human_product"] * 5, 20) # human product
+    ranking_score += min(product_totals_score["administering_medicine"] * 1, 5) # administering medicine
 
     return ranking_score
 
@@ -88,13 +123,16 @@ async def ranking_score_rev_empl(company):
     annual_revenue_score = (apollo_company.get('annual_revenue') or 0) * 0.00000002
 
     # Employees * 0.02
-    empl_score = (apollo_company.get('estimated_num_employees') or 0) * 0.02
+    # check which empl_website (number written on website) or estimated_num_employees (from apollo) is higher and use that
+    empl_num = apollo_company.get('estimated_num_employees') or 0
+    if (company.get('empl_website') or 0) > empl_num:
+        empl_num = company.get('empl_website')
+    empl_score = (empl_num * 0.02)
 
     ranking_score += min(annual_revenue_score, 20)
     ranking_score += min(empl_score, 20)
 
     return ranking_score
-
 
 async def process_company(session, company):
 
@@ -134,7 +172,7 @@ async def process_all_companies():
         await process_companies_batch(companies.data)
         
         total_processed += len(companies.data)
-        from_ += batch_size
+        # from_ += batch_size # not relevant now since we are updating the status of changed items in the db
         
         print(f"Processed {total_processed} companies so far.")
         

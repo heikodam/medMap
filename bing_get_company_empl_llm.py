@@ -74,10 +74,10 @@ def get_employee_count(website):
 
 def fetch_companies(page=0, page_size=1000):
     return supabase.table('eudamed_companies').select('*')\
-        .eq('iso_code', 'DE')\
+        .eq('iso_code', 'AT')\
         .eq('eudamed_type', 'MF')\
-        .eq('scraping_status', 'GOT_COMPANY_DEVICES')\
         .not_.is_('website', 'null')\
+        .neq('scraping_status', 'GOT_EMPL_WEBSITE')\
         .range(page*page_size, (page+1)*page_size-1)\
         .execute()
 
