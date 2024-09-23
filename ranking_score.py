@@ -18,7 +18,7 @@ base_url = "https://ec.europa.eu/tools/eudamed/api/devices/basicUdiData/udiDiDat
 async def fetch_companies(batch_size=1000, from_=0):
     return supabase.table('eudamed_companies') \
         .select("id", "name", "empl_website") \
-        .eq("iso_code", "FR") \
+        .eq("iso_code", "AT") \
         .eq("eudamed_type", "MF") \
         .neq("scraping_status", "UPDATED_RANKING_SCORE") \
         .range(from_, from_ + batch_size - 1) \

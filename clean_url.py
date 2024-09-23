@@ -18,7 +18,7 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 def fetch_companies(page=0, page_size=1000):
     return supabase.table('eudamed_companies').select('*')\
         .neq("scraping_status", "CLEANED_WEBSITE") \
-        .eq("iso_code", "AT") \
+        .eq("iso_code", "CH") \
         .range(page*page_size, (page+1)*page_size-1)\
         .execute()
 
