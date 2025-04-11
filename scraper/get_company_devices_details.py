@@ -150,7 +150,7 @@ async def process_all_products():
     print(f"Finished processing all products. Total processed: {total_processed}")
 
 # Run the script
-asyncio.run(process_all_products())
+# asyncio.run(process_all_products())
 
 
 

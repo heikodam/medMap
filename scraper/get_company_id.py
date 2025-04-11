@@ -77,4 +77,4 @@ def process_all_countries():
     print("Finished processing all countries.")
 
 # Run the script
-process_all_countries()
+# process_all_countries()

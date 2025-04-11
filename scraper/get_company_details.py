@@ -5,6 +5,7 @@ import aiohttp
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import json
+from datetime import datetime, timezone
 
 # Load environment variables
 load_dotenv()
@@ -52,6 +53,8 @@ async def update_company(company_id, details):
     city_name = actor_data.get('actorAddress', {}).get('cityName', 'Unknown')
     city_id = await get_or_create_city(city_name)
     
+    current_timestamp = datetime.now(timezone.utc).isoformat()
+
     company_update = {
         "json_dump": json.dumps(details),
         "importers": json.dumps(details.get('importers')),
@@ -100,7 +103,8 @@ async def update_company(company_id, details):
         "last_update_date": actor_data.get('lastUpdateDate'),
         "accuracy_data": json.dumps(actor_data.get('accuracyData')),
         "last_accuracy_date": actor_data.get('lastAccuracyDate'),
-        "scraping_status": "GOT_COMPANY_DETAILS"
+        "scraping_status": "GOT_COMPANY_DETAILS",
+        "medmap_last_update": current_timestamp
     }
     
     # Remove None values from the update dictionary
@@ -109,23 +113,11 @@ async def update_company(company_id, details):
     supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
 
 async def insert_contact_person(company_id, contact):
-    existing_contact = supabase.table('eudamed_contactpeople').select('id')\
-        .eq('company_id', company_id)\
-        .eq('email', contact.get('electronicMail'))\
-        .eq('phone', contact.get('telephone'))\
-        .eq('first_name', contact.get('firstName'))\
-        .eq('family_name', contact.get('familyName'))\
-        .eq('position', contact.get('position'))\
-        .execute()
-    
-    if existing_contact.data:
-        return
-
     geo_address = contact.get('geographicalAddress', {})
     city_name = geo_address.get('cityName', 'Unknown')
     city_id = await get_or_create_city(city_name)
     
-    new_contact = {
+    contact_data = {
         "company_id": company_id,
         "first_name": contact.get('firstName'),
         "family_name": contact.get('familyName'),
@@ -136,10 +128,28 @@ async def insert_contact_person(company_id, contact):
         "iso_code": geo_address.get('country', {}).get('iso2Code')
     }
     
-    # Remove None values from the new_contact dictionary
-    new_contact = {k: v for k, v in new_contact.items() if v is not None}
+    # Remove None values from the contact_data dictionary
+    contact_data = {k: v for k, v in contact_data.items() if v is not None}
     
-    supabase.table('eudamed_contactpeople').insert(new_contact).execute()
+    # Check if contact exists
+    existing_contact = supabase.table('eudamed_contactpeople').select('id')\
+        .eq('company_id', company_id)\
+        .eq('email', contact.get('electronicMail'))\
+        .eq('phone', contact.get('telephone'))\
+        .eq('first_name', contact.get('firstName'))\
+        .eq('family_name', contact.get('familyName'))\
+        .eq('position', contact.get('position'))\
+        .execute()
+    
+    if existing_contact.data:
+        # Update existing contact
+        supabase.table('eudamed_contactpeople')\
+            .update(contact_data)\
+            .eq('id', existing_contact.data[0]['id'])\
+            .execute()
+    else:
+        # Insert new contact
+        supabase.table('eudamed_contactpeople').insert(contact_data).execute()
 
 async def process_company(session, company):
     details = await fetch_company_details(session, company['eudamed_uuid'])
@@ -193,7 +203,7 @@ async def process_all_companies():
     print("Finished processing all companies.")
 
 # Run the script
-asyncio.run(process_all_companies())
+# asyncio.run(process_all_companies())
 
 
 # Pseudo code

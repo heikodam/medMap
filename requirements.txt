@@ -5,3 +5,8 @@ aiohttp
 google-api-python-client
 beautifulsoup4
 openai
+fuzzywuzzy
+ngrok
+fastapi
+uvicorn
+rich

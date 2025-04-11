@@ -120,4 +120,4 @@ async def process_all_companies():
     print(f"Finished processing all companies. Total processed: {total_processed}")
 
 # Run the script
-asyncio.run(process_all_companies())
+# asyncio.run(process_all_companies())
