@@ -18,7 +18,7 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 
 def fetch_companies(iso_code):
-    return supabase.table('eudamed_companies').select('*')\
+    return supabase.table('eudamed_company').select('*')\
         .neq("scraping_status", "CLEANED_WEBSITE") \
         .eq("iso_code", iso_code) \
         .execute()
