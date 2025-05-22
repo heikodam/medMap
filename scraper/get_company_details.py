@@ -36,11 +36,11 @@ async def fetch_company_details(session, eudamed_uuid):
     return None
 
 async def get_or_create_city(city_name):
-    existing_city = supabase.table('cities').select('id').eq('name', city_name).execute()
+    existing_city = supabase.table('city').select('id').eq('name', city_name).execute()
     if existing_city.data:
         return existing_city.data[0]['id']
     else:
-        new_city = supabase.table('cities').insert({'name': city_name}).execute()
+        new_city = supabase.table('city').insert({'name': city_name}).execute()
         return new_city.data[0]['id']
 
 async def update_company(company_id, details):
@@ -203,54 +203,4 @@ async def process_all_companies():
     
     print("Finished processing all companies.")
 
-# Run the script
-# asyncio.run(process_all_companies())
-
-
-# Pseudo code
-
-
-# Fetch companies from database - should happen in batches
-
-# For eacht company, fetch the details: https://ec.europa.eu/tools/eudamed/api/actors/fc9cb447-d565-4643-980b-196ef56fbb6e/publicInformation?languageIso2Code=en
-
-# Insert the details into the database
-
-
-# Table - matching keys
-# eudamed  -  supabase
-# 
-# actorStatus.code - eudamed_status
-# actorAddress.country.iso2Code - iso_code
-# actorAddress.cityName - city_id -> foreign key to cities table (id, name) insert if not exists else get id
-# type.srnCode - eudamed_type
-# actorStatus.code - eudamed_status
-# tradeRegister - trade_register
-# eori - eori
-# europeanVatNumber - european_vat_number
-# eudamedIdentifier - eudamed_identifier
-# tradeRegister - trade_register
-# telephone - phone
-# electronicMail - email
-# website - website
-# validatorName - validator_name
-# validatorUuid - validator_uuid
-# validatorType.srnCode - validator_type
-# validatorSrn - validator_srn
-# validatorEmail - validator_email
-# validatorTelephone - validator_phone
-
-
-
-# table: eudamed_contactpeople
-# eudamed  - supabase
-
-# company_id - is the id of the company in the eudamed_companies table
-# firstName - first_name
-# familyName - family_name
-# electronicMail - email
-# telephone - phone
-# position - position
-# geographicalAddress.cityName - city_id -> foreign key to cities table (id, name) insert if not exists else get id
-# geographicalAddress.country.iso2Code - iso_code (also a forgein key to the countries table with all iso codes and names)
 

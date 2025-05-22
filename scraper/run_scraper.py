@@ -32,7 +32,7 @@ def validate_iso_code(iso_code):
     if not iso_code:
         return True
     
-    result = supabase.table('countries').select("iso_code").eq("iso_code", iso_code).execute()
+    result = supabase.table('country').select("iso_code").eq("iso_code", iso_code).execute()
     return len(result.data) > 0
 
 async def run_scraper(iso_code):

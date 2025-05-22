@@ -40,7 +40,7 @@ def insert_company(company, iso_code, counter):
     print(f"Company {counter}: {company['name']}")
     
     # Check if the company ID already exists
-    existing = supabase.table('eudamed_company').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
+    existing = supabase.table('eudamed_company').select("*").eq("eudamed_uuid", eudamed_uuid).execute()
     
     if existing.data:
         print(f"Company already exists with UUID: {eudamed_uuid}")
@@ -72,7 +72,7 @@ def process_companies_for_country(iso_code):
         page += 1
 
 def get_country_iso_codes():
-    response = supabase.table('countries').select("iso_code").execute()
+    response = supabase.table('country').select("iso_code").execute()
     return [country['iso_code'] for country in response.data]
 
 def process_all_countries():
