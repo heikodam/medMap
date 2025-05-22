@@ -101,7 +101,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
     last_confirmed_company_str = datetime.fromtimestamp(last_confirmed_company/1000).isoformat() if last_confirmed_company else None
     
     # Check if company already exists
-    existing_company = supabase.table('cognism_companies')\
+    existing_company = supabase.table('cognism_company')\
         .select('id')\
         .eq('cognism_id', company_data.get('id'))\
         .execute()
@@ -110,7 +110,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
         company_id = existing_company.data[0]['id']
     else:
         # Insert company data
-        company_result = supabase.table('cognism_companies').insert({
+        company_result = supabase.table('cognism_company').insert({
             'cognism_id': company_data.get('id'),
             'name': company_data.get('name'),
             'domain': company_data.get('domain'),
@@ -134,7 +134,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
             # Get country data
             country_iso = None
             if location.get('country'):
-                country_result = supabase.table('countries')\
+                country_result = supabase.table('country')\
                     .select('iso_code')\
                     .ilike('name', location.get('country'))\
                     .execute()
@@ -145,7 +145,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
             city_id = None
             if location.get('city'):
                 # Try to find existing city
-                city_result = supabase.table('cities')\
+                city_result = supabase.table('city')\
                     .select('id')\
                     .ilike('name', location.get('city'))\
                     .execute()
@@ -154,13 +154,13 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
                     city_id = city_result.data[0]['id']
                 else:
                     # Create new city
-                    new_city_result = supabase.table('cities')\
+                    new_city_result = supabase.table('city')\
                         .insert({'name': location.get('city')})\
                         .execute()
                     if new_city_result.data:
                         city_id = new_city_result.data[0]['id']
 
-            supabase.table('cognism_locations').insert({
+            supabase.table('cognism_location').insert({
                 'cognism_company_id': company_id,
                 'city_id': city_id,
                 'country_iso_code': country_iso,
@@ -172,21 +172,21 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
 
         # Insert technologies and industries as tags
         for tech in company_data.get('technologies', []):
-            supabase.table('tags').insert({
+            supabase.table('cognism_tag').insert({
                 'cognism_company_id': company_id,
                 'name': tech,
                 'category': 'technology'
             }).execute()
 
         for industry in company_data.get('industry', []):
-            supabase.table('tags').insert({
+            supabase.table('cognism_tag').insert({
                 'cognism_company_id': company_id,
                 'name': industry,
                 'category': 'industry'
             }).execute()
 
     # Check if contact already exists
-    existing_contact = supabase.table('cognism_contacts')\
+    existing_contact = supabase.table('cognism_contact')\
         .select('id')\
         .eq('cognism_id', contact_data.get('id'))\
         .execute()
@@ -199,7 +199,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
         last_confirmed_contact_str = datetime.fromtimestamp(last_confirmed_contact/1000).isoformat() if last_confirmed_contact else None
 
         # Insert contact data
-        contact_result = supabase.table('cognism_contacts').insert({
+        contact_result = supabase.table('cognism_contact').insert({
             'contact_id': contact_id,  # Add the contact_id foreign key
             'cognism_id': contact_data.get('id'),
             'cognism_redeem_id': contact_data.get('redeemId'),
@@ -252,7 +252,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
             try:
                 event_date = datetime.strptime(event.get('date', ''), '%d.%m.%Y').date().isoformat() if event.get('date') else None
                 
-                supabase.table('cognism_job_events').insert({
+                supabase.table('cognism_job_event').insert({
                     'cognism_contact_id': cognism_contact_id,
                     'event_date': event_date,
                     'event_type': 'leave',
@@ -269,7 +269,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
             try:
                 event_date = datetime.strptime(event.get('date', ''), '%d.%m.%Y').date().isoformat() if event.get('date') else None
                 
-                supabase.table('cognism_job_events').insert({
+                supabase.table('cognism_job_event').insert({
                     'cognism_contact_id': cognism_contact_id,
                     'event_date': event_date,
                     'event_type': 'join',
@@ -284,7 +284,7 @@ def process_contact_data(supabase: Client, contact_data: Dict, contact_id: str) 
 
         # Insert phone numbers
         for phone in contact_data.get('mobilePhoneNumbers', []):
-            supabase.table('phone_numbers').insert({
+            supabase.table('phone_number').insert({
                 'contact_id': contact_id,  
                 'number': phone.get('number'),
                 'source': 'COGNISM',
@@ -311,7 +311,7 @@ def main():
     
     while True:
         # Fetch next batch of contacts
-        contacts_batch = supabase.table('contacts')\
+        contacts_batch = supabase.table('contact')\
             .select('*')\
             .eq('is_relevant', True)\
             .eq('scraping_status', 'FETCHED_APOLLO_CONTACT')\
@@ -350,7 +350,7 @@ def main():
         for contact in contacts['data']:
             # Skip if no linkedin url
             if not contact.get('linkedin_url'):
-                supabase.table('contacts')\
+                supabase.table('contact')\
                     .update({'scraping_status': 'FETCHED_COGNISM_CONTACT'})\
                     .eq('id', contact['id'])\
                     .execute()
@@ -360,7 +360,7 @@ def main():
             # Step 1: Enrich contact
             enrich_result = cognism_client.enrich_contact(contact['linkedin_url'])
             if not enrich_result or not enrich_result.get('results'):
-                supabase.table('contacts')\
+                supabase.table('contact')\
                     .update({'scraping_status': 'FETCHED_COGNISM_CONTACT'})\
                     .eq('id', contact['id'])\
                     .execute()
@@ -371,7 +371,7 @@ def main():
             contact_preview = enrich_result['results'][0]
             if not (contact_preview.get('hasEmail') or contact_preview.get('hasMobilePhoneNumbers')):
                 console.print(f"[yellow]Contact {contact['id']} has no email or phone[/yellow]")
-                supabase.table('contacts')\
+                supabase.table('contact')\
                     .update({'scraping_status': 'FETCHED_COGNISM_CONTACT'})\
                     .eq('id', contact['id'])\
                     .execute()
@@ -381,7 +381,7 @@ def main():
             # Step 2: Redeem contact
             redeem_result = cognism_client.redeem_contacts([contact_preview['redeemId']])
             if not redeem_result or not redeem_result.get('results'):
-                supabase.table('contacts')\
+                supabase.table('contact')\
                     .update({'scraping_status': 'FETCHED_COGNISM_CONTACT'})\
                     .eq('id', contact['id'])\
                     .execute()
@@ -391,7 +391,7 @@ def main():
             # Process and store the contact data
             try:
                 process_contact_data(supabase, redeem_result['results'][0], contact['id'])
-                supabase.table('contacts')\
+                supabase.table('contact')\
                     .update({'scraping_status': 'FETCHED_COGNISM_CONTACT'})\
                     .eq('id', contact['id'])\
                     .execute()

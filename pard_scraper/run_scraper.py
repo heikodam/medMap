@@ -87,21 +87,21 @@ def custom_save_companies_to_supabase(companies: List[Dict[str, Any]]) -> int:
             
             # Check if company already exists
             def check_company_exists():
-                return supabase.table("pard_companies").select("id").eq("man_organisation_id", formatted_company["man_organisation_id"]).execute()
+                return supabase.table("pard_company").select("id").eq("man_organisation_id", formatted_company["man_organisation_id"]).execute()
             
             existing = retry_supabase_operation(check_company_exists)
             
             if existing.data:
                 # Update existing company
                 def update_company():
-                    return supabase.table("pard_companies").update(formatted_company).eq("man_organisation_id", formatted_company["man_organisation_id"]).execute()
+                    return supabase.table("pard_company").update(formatted_company).eq("man_organisation_id", formatted_company["man_organisation_id"]).execute()
                 
                 retry_supabase_operation(update_company)
                 log_company_addition(company, "update")
             else:
                 # Insert new company
                 def insert_company():
-                    return supabase.table("pard_companies").insert(formatted_company).execute()
+                    return supabase.table("pard_company").insert(formatted_company).execute()
                 
                 retry_supabase_operation(insert_company)
                 log_company_addition(company, "insert")

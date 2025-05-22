@@ -16,9 +16,10 @@ supabase: Client = create_client(url, key)
 base_url = "https://ec.europa.eu/tools/eudamed/api/certificates"
 
 async def fetch_certificates(batch_size=1000, from_=0):
-    return supabase.table('eudamed_certificates') \
+    """Fetch a batch of certificates that need details"""
+    return supabase.table('eudamed_certificate') \
         .select("id", "eudamed_uuid") \
-        .eq("scraping_status", "GOT_CERTIFICATE_ID") \
+        .eq("scraping_status", "CREATED") \
         .range(from_, from_ + batch_size - 1) \
         .execute()
 
@@ -40,7 +41,7 @@ async def fetch_certificate_details(session, eudamed_uuid):
     return None
 
 async def get_company_id(manufacturer_uuid):
-    result = supabase.table('eudamed_companies') \
+    result = supabase.table('eudamed_company') \
         .select("id") \
         .eq("eudamed_uuid", manufacturer_uuid) \
         .execute()
@@ -118,7 +119,7 @@ async def update_certificate(certificate_id, details):
     # Remove None values from the update dictionary
     update_data = {k: v for k, v in update_data.items() if v is not None}
     
-    supabase.table('eudamed_certificates').update(update_data).eq('id', certificate_id).execute()
+    supabase.table('eudamed_certificate').update(update_data).eq('id', certificate_id).execute()
 
 async def update_certificate_scopes(certificate_id, scopes):
     for scope in scopes:
@@ -140,7 +141,7 @@ async def update_certificate_scopes(certificate_id, scopes):
             "system_procedure_pack": scope.get("systemProcedurePack"),
             "json_dump": scope,
         }
-        supabase.table('certificate_scopes').insert(scope_data).execute()
+        supabase.table('eudamed_certificate_scope').insert(scope_data).execute()
 
 async def update_certificate_documents(certificate_id, documents):
     for document in documents:
@@ -160,7 +161,7 @@ async def update_certificate_documents(certificate_id, documents):
             "virus_check": document.get("virusCheck"),
             "json_dump": document,
         }
-        supabase.table('certificate_documents').insert(document_data).execute()
+        supabase.table('eudamed_certificate_document').insert(document_data).execute()
 
 async def update_notified_body(notified_body):
     notified_body_data = {

@@ -118,7 +118,7 @@ def get_all_company_ids() -> List[int]:
     supabase = get_supabase_client()
     
     def fetch_company_ids():
-        return supabase.table("pard_companies").select("man_organisation_id").execute()
+        return supabase.table("pard_company").select("man_organisation_id").execute()
     
     result = retry_supabase_operation(fetch_company_ids)
     
@@ -144,7 +144,7 @@ def log_scrape_run(scrape_type: str, total_items: int, status: str, error: Optio
     """
     supabase = get_supabase_client()
     
-    # Create a scrape_logs table if it doesn't exist yet
+    # Create a scrape_log table if it doesn't exist yet
     try:
         log_data = {
             "scrape_type": scrape_type,
@@ -155,7 +155,7 @@ def log_scrape_run(scrape_type: str, total_items: int, status: str, error: Optio
         }
         
         def insert_log():
-            return supabase.table("scrape_logs").insert(log_data).execute()
+            return supabase.table("scrape_log").insert(log_data).execute()
         
         result = retry_supabase_operation(insert_log)
         return result.data[0] if result.data else log_data

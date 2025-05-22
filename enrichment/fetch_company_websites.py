@@ -68,20 +68,22 @@ def fetch_and_update_company_websites(iso_code):
             
             if verified_website:
                 # Update the company record in Supabase
-                supabase.table("eudamed_companies").update({
+                supabase.table("eudamed_company").update({
                     "website": verified_website,
-                    "scraping_status": "SEARCHED_FOR_WEBSITE"
+                    "scraping_status": "FETCHED_WEBSITE_BING" if verified_website else "ERROR_WEBSITE"
                 }).eq("id", company['id']).execute()
                 print(f"[{i+1}/{total_companies}] Updated {company_name} with website: {verified_website}")
             else:
                 print(f"[{i+1}/{total_companies}] Could not verify website for {company_name}")
-                supabase.table("eudamed_companies").update({
-                    "scraping_status": "SEARCHED_FOR_WEBSITE"
+                supabase.table("eudamed_company").update({
+                    "scraping_status": "ERROR_WEBSITE_SEARCH",
+                    "error_message": "Website verification failed"
                 }).eq("id", company['id']).execute()
         else:
             print(f"[{i+1}/{total_companies}] No website found for {company_name}")
-            supabase.table("eudamed_companies").update({
-                "scraping_status": "SEARCHED_FOR_WEBSITE"
+            supabase.table("eudamed_company").update({
+                "scraping_status": "ERROR_WEBSITE_SEARCH",
+                "error_message": "No website found"
             }).eq("id", company['id']).execute()
 
 if __name__ == "__main__":

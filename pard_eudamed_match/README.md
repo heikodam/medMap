@@ -1,6 +1,6 @@
 # PARD-EUDAMED Company Name Matcher
 
-This script compares company names between the `pard_companies` and `eudamed_companies` tables in Supabase and identifies matches.
+This script compares company names between the `pard_company` and `eudamed_company` tables in Supabase and identifies matches.
 
 ## Features
 

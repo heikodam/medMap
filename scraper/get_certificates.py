@@ -36,17 +36,22 @@ def insert_certificate(certificate, counter):
     # Print certificate number and counter
     print(f"Certificate {counter}: {certificate['certificateNumber']}")
     
-    # Check if the certificate already exists
-    existing = supabase.table('eudamed_certificates').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
+    # Check if this certificate already exists
+    existing = supabase.table('eudamed_certificate').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
     
-    if not existing.data:
-        new_record = {
-            "id": str(uuid.uuid4()),
-            "eudamed_uuid": eudamed_uuid,
-            "certificate_number": certificate['certificateNumber'],
-            "scraping_status": "GOT_CERTIFICATE_ID"
-        }
-        supabase.table('eudamed_certificates').insert(new_record).execute()
+    if existing.data:
+        print(f"Certificate already exists with UUID: {eudamed_uuid}")
+        return existing.data[0]['id']
+    
+    # Insert new certificate
+    new_record = {
+        "eudamed_uuid": eudamed_uuid,
+        "scraping_status": "CREATED",
+        "json_response": certificate,
+        # Other fields can be added here as needed
+    }
+    
+    result = supabase.table('eudamed_certificate').insert(new_record).execute()
 
 def process_certificates():
     page = 0

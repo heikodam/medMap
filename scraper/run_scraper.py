@@ -21,9 +21,9 @@ supabase: Client = create_client(url, key)
 def reset_scraping_status():
     """Reset scraping status for all companies"""
     print("Resetting scraping status for all companies...")
-    supabase.table('eudamed_companies') \
-        .update({"scraping_status": None}) \
-        .not_.is_('scraping_status', 'null') \
+    supabase.table('eudamed_company') \
+        .update({"scraping_status": "PENDING"}) \
+        .eq("scraping_status", "CREATED") \
         .execute()
     print("Reset complete.")
 

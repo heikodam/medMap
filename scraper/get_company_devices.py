@@ -16,10 +16,11 @@ supabase: Client = create_client(url, key)
 # EUDAMED API URL
 base_url = "https://ec.europa.eu/tools/eudamed/api/devices/udiDiData"
 
-def fetch_companies(batch_size=1000, from_=0):
-    return supabase.table('eudamed_companies') \
-        .select("id", "eudamed_identifier") \
-        .eq("scraping_status", "GOT_COMPANY_DETAILS") \
+def fetch_companies(batch_size=10, from_=0):
+    """Fetch a batch of companies from Supabase"""
+    return supabase.table('eudamed_company') \
+        .select("id", "eudamed_uuid") \
+        .eq("scraping_status", "FETCHED_DETAILS") \
         .range(from_, from_ + batch_size - 1) \
         .execute()
 
@@ -58,7 +59,7 @@ async def insert_or_update_device(device, company_id):
     eudamed_uuid = device['uuid']
     
     # Check if the device already exists
-    existing_device = supabase.table('eudamed_products') \
+    existing_device = supabase.table('eudamed_product') \
         .select("id") \
         .eq("eudamed_uuid", eudamed_uuid) \
         .execute()
@@ -70,7 +71,7 @@ async def insert_or_update_device(device, company_id):
             "company_id": company_id,
             "scraping_status": "GOT_COMPANY_DEVICES"
         }
-        supabase.table('eudamed_products') \
+        supabase.table('eudamed_product') \
             .update(updated_device) \
             .eq("eudamed_uuid", eudamed_uuid) \
             .execute()
@@ -84,14 +85,14 @@ async def insert_or_update_device(device, company_id):
             "eudamed_uuid": eudamed_uuid,
             "scraping_status": "GOT_COMPANY_DEVICES"
         }
-        supabase.table('eudamed_products').insert(new_device).execute()
+        supabase.table('eudamed_product').insert(new_device).execute()
         print(f"Inserted new device: {eudamed_uuid}")
 
 async def process_company_devices(session, company):
     try:
         page = 0
         while True:
-            data = await fetch_devices(session, company['eudamed_identifier'], page)
+            data = await fetch_devices(session, company['eudamed_uuid'], page)
             
             tasks = [insert_or_update_device(device, company['id']) for device in data['content']]
             await asyncio.gather(*tasks)
@@ -102,12 +103,12 @@ async def process_company_devices(session, company):
             page += 1
         
         # Update company scraping status
-        supabase.table('eudamed_companies') \
-            .update({"scraping_status": "GOT_COMPANY_DEVICES"}) \
+        supabase.table('eudamed_company') \
+            .update({"scraping_status": "FETCHED_PRODUCTS"}) \
             .eq("id", company['id']) \
             .execute()
     except Exception as e:
-        print(f"Error processing company {company['eudamed_identifier']}: {str(e)}")
+        print(f"Error processing company {company['eudamed_uuid']}: {str(e)}")
         raise
 
 async def process_companies_batch(companies):
@@ -125,7 +126,7 @@ async def process_companies_batch(companies):
         # Log any exceptions that occurred
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                print(f"Failed to process company {companies[i]['eudamed_identifier']}: {result}")
+                print(f"Failed to process company {companies[i]['eudamed_uuid']}: {result}")
 
 async def process_all_companies():
     batch_size = 50

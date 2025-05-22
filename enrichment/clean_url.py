@@ -23,6 +23,14 @@ def fetch_companies(iso_code):
         .eq("iso_code", iso_code) \
         .execute()
 
+def fetch_companies_with_website(iso_code: str, batch_size=100, start=0):
+    """Fetch companies with website field that needs cleaning"""
+    return supabase.table('eudamed_company').select('*')\
+        .eq('iso_code', iso_code)\
+        .not_.is_('website', 'null')\
+        .range(start, start + batch_size - 1)\
+        .execute()
+
 def clean_website(website):
 
     response = openai.chat.completions.create(
@@ -70,7 +78,7 @@ def process_company(company, current, total):
             "scraping_status": "CLEANED_WEBSITE"
         }
     
-    supabase.table('eudamed_companies').update(update_data).eq('id', company['id']).execute()
+    supabase.table('eudamed_company').update(update_data).eq('id', company['id']).execute()
     print(f"[{current}/{total}] Processed company: {company['name']} - Old: {company['website']} New Website: {cleaned_website if cleaned_website else 'N/A'}")
 
 # Run the script

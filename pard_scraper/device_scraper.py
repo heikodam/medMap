@@ -24,7 +24,7 @@ def get_company_id_by_man_organisation_id(man_organisation_id: int) -> Optional[
     supabase = get_supabase_client()
     
     def fetch_company():
-        return supabase.table("pard_companies").select("id").eq("man_organisation_id", man_organisation_id).execute()
+        return supabase.table("pard_company").select("id").eq("man_organisation_id", man_organisation_id).execute()
     
     result = retry_supabase_operation(fetch_company)
     
@@ -44,7 +44,7 @@ def format_device_data(device_data: Dict[str, Any]) -> Dict[str, Any]:
         Formatted device data ready for database insertion
     """
     # Get the company ID for the foreign key relationship
-    pard_companies_id = get_company_id_by_man_organisation_id(device_data.get("MAN_ORGANISATION_ID"))
+    pard_company_id = get_company_id_by_man_organisation_id(device_data.get("MAN_ORGANISATION_ID"))
     
     # Helper function to handle None values
     def clean_value(value):
@@ -55,7 +55,7 @@ def format_device_data(device_data: Dict[str, Any]) -> Dict[str, Any]:
     
     # Convert to snake_case and standardize data types
     formatted_data = {
-        "pard_companies_id": pard_companies_id,
+        "pard_company_id": pard_company_id,
         "man_organisation_id": clean_value(device_data.get("MAN_ORGANISATION_ID")),
         "device_id": clean_value(device_data.get("DEVICE_ID")),
         "gmdn_code": clean_value(device_data.get("GMDN_CODE")),
@@ -193,7 +193,7 @@ def save_devices_to_supabase(devices: List[Dict[str, Any]]) -> Tuple[int, int]:
                 print(f"  man_organisation_id = {formatted_device['man_organisation_id']} (type: {type(formatted_device['man_organisation_id']).__name__})")
             
             # Skip devices without a company reference
-            if not formatted_device["pard_companies_id"]:
+            if not formatted_device["pard_company_id"]:
                 skipped_count += 1
                 continue
                 
@@ -209,10 +209,10 @@ def save_devices_to_supabase(devices: List[Dict[str, Any]]) -> Tuple[int, int]:
             # Check if device already exists - use either device_id or fingerprint
             if has_device_id:
                 def check_device_exists():
-                    return supabase.table("pard_devices").select("id").eq("device_id", formatted_device["device_id"]).execute()
+                    return supabase.table("pard_device").select("id").eq("device_id", formatted_device["device_id"]).execute()
             else:
                 def check_device_exists():
-                    return supabase.table("pard_devices").select("id").eq("device_fingerprint", formatted_device["device_fingerprint"]).execute()
+                    return supabase.table("pard_device").select("id").eq("device_fingerprint", formatted_device["device_fingerprint"]).execute()
             
             existing = retry_supabase_operation(check_device_exists)
             
@@ -220,16 +220,16 @@ def save_devices_to_supabase(devices: List[Dict[str, Any]]) -> Tuple[int, int]:
                 # Update existing device
                 if has_device_id:
                     def update_device():
-                        return supabase.table("pard_devices").update(formatted_device).eq("device_id", formatted_device["device_id"]).execute()
+                        return supabase.table("pard_device").update(formatted_device).eq("device_id", formatted_device["device_id"]).execute()
                 else:
                     def update_device():
-                        return supabase.table("pard_devices").update(formatted_device).eq("device_fingerprint", formatted_device["device_fingerprint"]).execute()
+                        return supabase.table("pard_device").update(formatted_device).eq("device_fingerprint", formatted_device["device_fingerprint"]).execute()
                 
                 retry_supabase_operation(update_device)
             else:
                 # Insert new device
                 def insert_device():
-                    return supabase.table("pard_devices").insert(formatted_device).execute()
+                    return supabase.table("pard_device").insert(formatted_device).execute()
                 
                 retry_supabase_operation(insert_device)
             

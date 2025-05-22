@@ -17,7 +17,7 @@ def fetch_all_companies(supabase: Client, iso_code: str, additional_filters=None
     
     while True:
         # Start with base query
-        query = supabase.table('eudamed_companies')\
+        query = supabase.table('eudamed_company')\
             .select('*')\
             .eq('iso_code', iso_code)\
             .eq('eudamed_type', 'MF')

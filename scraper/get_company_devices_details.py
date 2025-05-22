@@ -15,8 +15,9 @@ supabase: Client = create_client(url, key)
 # EUDAMED API URL
 base_url = "https://ec.europa.eu/tools/eudamed/api/devices/basicUdiData/udiDiData"
 
-async def fetch_products(batch_size=1000, from_=0):
-    return supabase.table('eudamed_products') \
+async def fetch_products(batch_size=100, from_=0):
+    """Fetch a batch of products"""
+    return supabase.table('eudamed_product') \
         .select("id", "eudamed_uuid") \
         .eq("scraping_status", "GOT_COMPANY_DEVICES") \
         .range(from_, from_ + batch_size - 1) \
@@ -110,7 +111,7 @@ async def update_product(product_id, details):
     # Remove None values from the update dictionary
     update_data = {k: v for k, v in update_data.items() if v is not None}
     
-    supabase.table('eudamed_products').update(update_data).eq('id', product_id).execute()
+    supabase.table('eudamed_product').update(update_data).eq('id', product_id).execute()
     # print(f"Updated product: {product_id}")
 
 async def process_product(session, product):

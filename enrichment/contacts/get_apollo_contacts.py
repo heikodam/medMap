@@ -685,8 +685,8 @@ async def process_company(session, company: Dict, job_titles: List[str]) -> None
         await save_contacts_to_database(enriched_matching_contacts, all_excluded_contacts)
     
     # Update company's scraping status
-    supabase.table('eudamed_companies')\
-        .update({"scraping_status": "FETCHED_APOLLO_CONTACTS"})\
+    supabase.table('eudamed_company')\
+        .update({'has_apollo_contacts': True})\
         .eq('id', company['id'])\
         .execute()
     

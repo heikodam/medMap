@@ -39,17 +39,22 @@ def insert_company(company, iso_code, counter):
     print(f"Country Code: {iso_code}")
     print(f"Company {counter}: {company['name']}")
     
-    # Check if the company already exists
-    existing = supabase.table('eudamed_companies').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
+    # Check if the company ID already exists
+    existing = supabase.table('eudamed_company').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
     
-    if not existing.data:
-        new_record = {
-            "id": str(uuid.uuid4()),
-            "name": company['name'],
-            "scraping_status": "GOT_COMPANY_ID",
-            "eudamed_uuid": eudamed_uuid
-        }
-        supabase.table('eudamed_companies').insert(new_record).execute()
+    if existing.data:
+        print(f"Company already exists with UUID: {eudamed_uuid}")
+        return existing.data[0]['id']
+    
+    # Insert new company record
+    new_record = {
+        "eudamed_uuid": eudamed_uuid,
+        "name": company['name'],
+        "scraping_status": "CREATED",
+        "iso_code": iso_code
+    }
+    
+    result = supabase.table('eudamed_company').insert(new_record).execute()
     
 def process_companies_for_country(iso_code):
     page = 0

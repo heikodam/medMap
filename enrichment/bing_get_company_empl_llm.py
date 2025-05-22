@@ -87,7 +87,7 @@ def process_company(company, current, total):
             "scraping_status": "GOT_EMPL_WEBSITE"
         }
     
-    supabase.table('eudamed_companies').update(update_data).eq('id', company['id']).execute()
+    supabase.table('eudamed_company').update(update_data).eq('id', company['id']).execute()
     print(f"[{current}/{total}] Processed company: {company['name']} - Employee count: {employee_count if 'empl_website' in update_data else 'N/A'}")
 
 def process_all_companies(iso_code):

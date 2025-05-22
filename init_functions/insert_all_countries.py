@@ -1215,5 +1215,5 @@ for country in countries:
         'type': country['type']
     }
 
-    supabase.table('countries').insert(restrctured_country).execute()
+    supabase.table('country').insert(restrctured_country).execute()
 

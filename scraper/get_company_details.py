@@ -47,7 +47,7 @@ async def update_company(company_id, details):
     actor_data = details.get('actorDataPublicView', {})
     if not actor_data:
         print(f"Warning: No actorDataPublicView for company {company_id}")
-        supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company_id).execute()
+        supabase.table('eudamed_company').update({"scraping_status": "ERROR"}).eq('id', company_id).execute()
         return
 
     city_name = actor_data.get('actorAddress', {}).get('cityName', 'Unknown')
@@ -110,7 +110,7 @@ async def update_company(company_id, details):
     # Remove None values from the update dictionary
     company_update = {k: v for k, v in company_update.items() if v is not None}
     
-    supabase.table('eudamed_companies').update(company_update).eq('id', company_id).execute()
+    supabase.table('eudamed_company').update(company_update).eq('id', company_id).execute()
 
 async def insert_contact_person(company_id, contact):
     geo_address = contact.get('geographicalAddress', {})
@@ -156,13 +156,13 @@ async def process_company(session, company):
     
     if details is None:
         print(f"Error fetching details for company {company['id']}")
-        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
+        await supabase.table('eudamed_company').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
         return
 
     # Check for error response
     if 'httpStatusCode' in details:
         print(f"Error fetching details for company {company['id']}: {details['httpStatus']}")
-        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
+        await supabase.table('eudamed_company').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
         return
 
     actor_data = details.get('actorDataPublicView')
@@ -177,12 +177,13 @@ async def process_company(session, company):
         await update_company(company['id'], details)
     else:
         print(f"Warning: No actorDataPublicView for company {company['id']}")
-        await supabase.table('eudamed_companies').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
+        await supabase.table('eudamed_company').update({"scraping_status": "ERROR"}).eq('id', company['id']).execute()
 
-async def fetch_companies():
-    return supabase.table('eudamed_companies')\
-        .select('*')\
-        .neq("scraping_status", "GOT_COMPANY_DETAILS")\
+async def fetch_companies(batch_size=1000, from_=0):
+    return supabase.table('eudamed_company')\
+        .select("*")\
+        .eq("scraping_status", "CREATED")\
+        .range(from_, from_ + batch_size - 1)\
         .execute()
 
 async def process_all_companies():

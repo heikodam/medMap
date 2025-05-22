@@ -2,14 +2,14 @@ import os
 from supabase import create_client, Client
 
 async def fetch_comp_products(supabase: Client, uuid: str):
-    return supabase.table('eudamed_products') \
+    return supabase.table('eudamed_product') \
         .select("id", "risk_class", "medicinal_product", "human_tissues", "animal_tissues", "human_product", "administering_medicine") \
         .eq("company_id", uuid) \
         .or_("legislation.eq.refdata.applicable-legislation.mdr,legislation.eq.refdata.applicable-legislation.mdd") \
         .execute()
 
 async def fetch_apollo_company(supabase: Client, company):
-    return supabase.table('apollo_companies') \
+    return supabase.table('apollo_company') \
         .select("id", "eudamed_company_id", "estimated_num_employees", "annual_revenue") \
         .eq("eudamed_company_id", company['id']) \
         .execute()
@@ -17,7 +17,7 @@ async def fetch_apollo_company(supabase: Client, company):
 async def update_company(supabase: Client, id, update_data):
     # Remove None values from the update dictionary
     details = {k: v for k, v in update_data.items() if v is not None}
-    supabase.table('eudamed_companies').update(details).eq('id', id).execute()
+    supabase.table('eudamed_company').update(details).eq('id', id).execute()
 
 async def ranking_score_products(supabase: Client, company):
     products = await fetch_comp_products(supabase, company['id'])

@@ -13,7 +13,7 @@ def test_supabase_connection():
     supabase = get_supabase_client()
     
     def test_query():
-        return supabase.table("pard_companies").select("id").limit(1).execute()
+        return supabase.table("pard_company").select("id").limit(1).execute()
     
     try:
         result = retry_supabase_operation(test_query)
