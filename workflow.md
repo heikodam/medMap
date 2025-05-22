@@ -63,3 +63,11 @@ This document outlines the workflow for interacting with the EUDAMED (European D
 
 Each step has a corresponding status that can be used to track progress through the workflow.
 
+## Countries
+DE - Germany
+AT - Austria
+CH - Switzerland
+FR - France
+UK - United Kingdom (except Northern Ireland)
+XI - United Kingdom (Northern Ireland)
+IE - Ireland

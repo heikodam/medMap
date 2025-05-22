@@ -61,7 +61,7 @@ async def run_scraper(iso_code):
     await process_all_device_details()
     
     
-    print("\nAll scraping tasks completed!")
+    print("\nAll scraping tasks completed!") # IE, XI, UK, DE, FR
 
 def main():
     """

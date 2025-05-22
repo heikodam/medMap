@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 from helpers import fetch_all_companies
 import sys
+import re
 
 # Load environment variables
 load_dotenv()
@@ -18,6 +19,28 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # Apollo API setup
 APOLLO_API_KEY = os.environ.get("APOLLO_API_KEY")
 APOLLO_API_URL = "https://api.apollo.io/v1/organizations/enrich"
+
+def clean_website_url(url):
+    """
+    Clean website URL to standardize format for comparison.
+    Examples:
+    - http://www.example.com -> example.com
+    - https://example.com/home -> example.com
+    - example.com/ -> example.com
+    """
+    if not url:
+        return None
+    
+    # Remove http://, https://, www., and trailing paths
+    cleaned_url = url.lower()
+    cleaned_url = re.sub(r'^https?://', '', cleaned_url)
+    cleaned_url = re.sub(r'^www\.', '', cleaned_url)
+    cleaned_url = cleaned_url.split('/')[0]
+    
+    # Remove trailing dots or slashes
+    cleaned_url = cleaned_url.rstrip('./')
+    
+    return cleaned_url
 
 async def fetch_apollo_data(session, domain):
     headers = {
@@ -32,7 +55,6 @@ async def fetch_apollo_data(session, domain):
 
     for attempt in range(max_retries):
         async with session.get(APOLLO_API_URL, headers=headers, params=params) as response:
-            print("response.text", await response.text())
             if response.status == 200:
                 return await response.json()
             elif response.status == 429:
@@ -51,11 +73,51 @@ async def fetch_apollo_data(session, domain):
 
 async def insert_apollo_company(eudamed_company_id, apollo_data):
     organization = apollo_data.get('organization', {})
-
-    # Prepare the data for insertion
+    apollo_id = organization.get('id')
+    
+    # Check if an Apollo company with this apollo_id already exists
+    if apollo_id:
+        existing_result = supabase.table('apollo_companies') \
+            .select('id') \
+            .eq('apollo_id', apollo_id) \
+            .execute()
+        
+        if existing_result.data and len(existing_result.data) > 0:
+            existing_apollo_id = existing_result.data[0]['id']
+            print(f"Apollo company with apollo_id {apollo_id} already exists. Updating instead of inserting.")
+            
+            # Update the existing Apollo company with the new eudamed_company_id
+            update_data = {
+                "eudamed_company_id": eudamed_company_id,
+                "json_dump": apollo_data
+            }
+            
+            update_result = supabase.table('apollo_companies') \
+                .update(update_data) \
+                .eq('id', existing_apollo_id) \
+                .execute()
+            
+            if len(update_result.data) > 0:
+                print(f"Updated existing Apollo company {existing_apollo_id} with eudamed_company_id {eudamed_company_id}")
+                
+                # Update eudamed_companies with the apollo_companies_id
+                eudamed_update_result = supabase.table('eudamed_companies').update({
+                    "apollo_companies_id": existing_apollo_id
+                }).eq('id', eudamed_company_id).execute()
+                
+                if len(eudamed_update_result.data) > 0:
+                    print(f"Updated eudamed_company {eudamed_company_id} with apollo_companies_id {existing_apollo_id}")
+                else:
+                    print(f"Failed to update eudamed_company {eudamed_company_id} with apollo_companies_id")
+                
+                return
+            else:
+                print(f"Failed to update existing Apollo company {existing_apollo_id}")
+    
+    # If no existing record with same apollo_id was found, proceed with insert
     insert_data = {
         "eudamed_company_id": eudamed_company_id,
-        "apollo_id": organization.get('id'),
+        "apollo_id": apollo_id,
         "name": organization.get('name'),
         "website_url": organization.get('website_url'),
         "blog_url": organization.get('blog_url'),
@@ -106,11 +168,18 @@ async def insert_apollo_company(eudamed_company_id, apollo_data):
     
     if len(result.data) > 0:
         print(f"Inserted Apollo data for company {eudamed_company_id} - {organization.get('website_url')}")
+        # Update eudamed_companies with the apollo_companies_id
+        update_result = supabase.table('eudamed_companies').update({
+            "apollo_companies_id": result.data[0]['id']
+        }).eq('id', eudamed_company_id).execute()
+        if len(update_result.data) > 0:
+            print(f"Updated eudamed_company {eudamed_company_id} with apollo_companies_id")
+        else:
+            print(f"Failed to update eudamed_company {eudamed_company_id} with apollo_companies_id")
     else:
         print(f"Failed to insert Apollo data for company {eudamed_company_id}")
 
 async def check_apollo_company_exists(eudamed_company_id):
-    
     result = supabase.table('apollo_companies') \
         .select('id') \
         .eq('eudamed_company_id', eudamed_company_id) \
@@ -118,7 +187,83 @@ async def check_apollo_company_exists(eudamed_company_id):
     
     return len(result.data) > 0
 
+async def find_existing_apollo_company_by_website(website):
+    """
+    Check if a company with the same website already exists in apollo_companies
+    Returns the apollo_companies record if found, None otherwise
+    """
+    if not website:
+        return None
+    
+    cleaned_website = clean_website_url(website)
+    if not cleaned_website:
+        return None
+    
+    # Get all apollo companies
+    result = supabase.table('apollo_companies').select('id, website_url, apollo_id').execute()
+    
+    for apollo_company in result.data:
+        if not apollo_company.get('website_url'):
+            continue
+        
+        apollo_website_cleaned = clean_website_url(apollo_company['website_url'])
+        if apollo_website_cleaned and apollo_website_cleaned == cleaned_website:
+            return apollo_company
+    
+    return None
+
+async def link_eudamed_to_existing_apollo(eudamed_company_id, apollo_company_id):
+    """
+    Link an eudamed_company to an existing apollo_company
+    """
+    update_result = supabase.table('eudamed_companies').update({
+        "apollo_companies_id": apollo_company_id
+    }).eq('id', eudamed_company_id).execute()
+    
+    if len(update_result.data) > 0:
+        print(f"Linked eudamed_company {eudamed_company_id} to existing apollo_company {apollo_company_id}")
+        return True
+    else:
+        print(f"Failed to link eudamed_company {eudamed_company_id} to apollo_company {apollo_company_id}")
+        return False
+
+async def update_apollo_company_with_eudamed_id(apollo_company_id, eudamed_company_id):
+    """
+    Update an existing apollo_company with an eudamed_company_id reference
+    """
+    update_result = supabase.table('apollo_companies').update({
+        "eudamed_company_id": eudamed_company_id
+    }).eq('id', apollo_company_id).execute()
+    
+    if len(update_result.data) > 0:
+        print(f"Updated apollo_company {apollo_company_id} with eudamed_company_id {eudamed_company_id}")
+        return True
+    else:
+        print(f"Failed to update apollo_company {apollo_company_id} with eudamed_company_id {eudamed_company_id}")
+        return False
+
 async def process_company(session, company, current, total):
+    # First check if the eudamed company already has an apollo_companies_id
+    result = supabase.table('eudamed_companies') \
+        .select('apollo_companies_id') \
+        .eq('id', company['id']) \
+        .execute()
+    
+    if result.data and result.data[0].get('apollo_companies_id'):
+        print(f"[{current}/{total}] {company['name']} already linked to Apollo. Skipping.")
+        return
+    
+    # If no direct link, check if the company with same website already exists in apollo_companies
+    existing_apollo = await find_existing_apollo_company_by_website(company['website'])
+    if existing_apollo:
+        print(f"[{current}/{total}] Found existing Apollo company with matching website for {company['name']}.")
+        # Update the apollo company with the eudamed company ID
+        await update_apollo_company_with_eudamed_id(existing_apollo['id'], company['id'])
+        # Also update the eudamed company with the apollo company ID for backward compatibility
+        await link_eudamed_to_existing_apollo(company['id'], existing_apollo['id'])
+        return
+    
+    # If Apollo company already exists for this eudamed company, skip
     if await check_apollo_company_exists(company['id']):
         print(f"[{current}/{total}] {company['name']} already exists in Apollo. Skipping.")
         return
@@ -127,6 +272,7 @@ async def process_company(session, company, current, total):
         print(f"[{current}/{total}] {company['name']} has no website. Skipping.")
         return
 
+    # Only make the API call if no existing Apollo company was found
     apollo_data = await fetch_apollo_data(session, company['website'])
 
     if apollo_data:
@@ -141,6 +287,14 @@ async def process_company(session, company, current, total):
         result = supabase.table('apollo_companies').insert(minimal_data).execute()
         if len(result.data) > 0:
             print(f"[{current}/{total}] Inserted minimal Apollo data for company {company['id']} - {company['website']}")
+            # Update eudamed_companies with the apollo_companies_id
+            update_result = supabase.table('eudamed_companies').update({
+                "apollo_companies_id": result.data[0]['id']
+            }).eq('id', company['id']).execute()
+            if len(update_result.data) > 0:
+                print(f"Updated eudamed_company {company['id']} with apollo_companies_id")
+            else:
+                print(f"Failed to update eudamed_company {company['id']} with apollo_companies_id")
         else:
             print(f"[{current}/{total}] Failed to insert minimal Apollo data for company {company['id']}")
 

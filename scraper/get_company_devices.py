@@ -23,7 +23,7 @@ def fetch_companies(batch_size=1000, from_=0):
         .range(from_, from_ + batch_size - 1) \
         .execute()
 
-async def fetch_devices(session, srn, page=0, page_size=300):
+async def fetch_devices(session, srn, page=0, page_size=300, max_retries=3):
     params = {
         "page": page,
         "pageSize": page_size,
@@ -32,8 +32,27 @@ async def fetch_devices(session, srn, page=0, page_size=300):
         "srn": srn,
         "languageIso2Code": "en"
     }
-    async with session.get(base_url, params=params) as response:
-        return await response.json()
+    
+    for attempt in range(max_retries):
+        try:
+            async with session.get(base_url, params=params) as response:
+                return await response.json()
+        except asyncio.TimeoutError:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff
+                print(f"Request timed out for SRN {srn}, retrying in {wait_time} seconds (attempt {attempt+1}/{max_retries})")
+                await asyncio.sleep(wait_time)
+            else:
+                print(f"Failed to fetch devices for SRN {srn} after {max_retries} attempts")
+                raise
+        except Exception as e:
+            print(f"Error fetching devices for SRN {srn}: {str(e)}")
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                print(f"Retrying in {wait_time} seconds (attempt {attempt+1}/{max_retries})")
+                await asyncio.sleep(wait_time)
+            else:
+                raise
 
 async def insert_or_update_device(device, company_id):
     eudamed_uuid = device['uuid']
@@ -69,28 +88,44 @@ async def insert_or_update_device(device, company_id):
         print(f"Inserted new device: {eudamed_uuid}")
 
 async def process_company_devices(session, company):
-    page = 0
-    while True:
-        data = await fetch_devices(session, company['eudamed_identifier'], page)
+    try:
+        page = 0
+        while True:
+            data = await fetch_devices(session, company['eudamed_identifier'], page)
+            
+            tasks = [insert_or_update_device(device, company['id']) for device in data['content']]
+            await asyncio.gather(*tasks)
+            
+            if data['last']:
+                break
+            
+            page += 1
         
-        tasks = [insert_or_update_device(device, company['id']) for device in data['content']]
-        await asyncio.gather(*tasks)
-        
-        if data['last']:
-            break
-        
-        page += 1
-    
-    # Update company scraping status
-    supabase.table('eudamed_companies') \
-        .update({"scraping_status": "GOT_COMPANY_DEVICES"}) \
-        .eq("id", company['id']) \
-        .execute()
+        # Update company scraping status
+        supabase.table('eudamed_companies') \
+            .update({"scraping_status": "GOT_COMPANY_DEVICES"}) \
+            .eq("id", company['id']) \
+            .execute()
+    except Exception as e:
+        print(f"Error processing company {company['eudamed_identifier']}: {str(e)}")
+        raise
 
 async def process_companies_batch(companies):
-    async with aiohttp.ClientSession() as session:
-        tasks = [process_company_devices(session, company) for company in companies]
-        await asyncio.gather(*tasks)
+    # Configure timeout settings for the client session
+    timeout = aiohttp.ClientTimeout(total=120, connect=60, sock_connect=60, sock_read=60)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        tasks = []
+        for company in companies:
+            task = process_company_devices(session, company)
+            tasks.append(task)
+        
+        # Use return_exceptions to prevent one failure from stopping all tasks
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Log any exceptions that occurred
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"Failed to process company {companies[i]['eudamed_identifier']}: {result}")
 
 async def process_all_companies():
     batch_size = 50
@@ -114,9 +149,6 @@ async def process_all_companies():
         if len(companies.data) < batch_size:
             break
         
-        
-        
-
     print(f"Finished processing all companies. Total processed: {total_processed}")
 
 # Run the script
