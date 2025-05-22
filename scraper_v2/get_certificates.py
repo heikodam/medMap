@@ -1,0 +1,73 @@
+import os
+import uuid
+import requests
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# Load environment variables
+load_dotenv()
+
+# Supabase setup
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(url, key)
+
+# EUDAMED API URL
+base_url = "https://ec.europa.eu/tools/eudamed/api/certificates/search/"
+
+def fetch_certificates(page=0, page_size=300):
+    params = {
+        "page": page,
+        "pageSize": page_size,
+        "size": page_size,
+        "iso2Code": "en",
+        "entityTypeCode": "certificate.certificates",
+        "languageIso2Code": "en"
+    }
+    response = requests.get(base_url, params=params)
+    return response.json()
+
+def insert_certificate(certificate, counter):
+    eudamed_uuid = certificate['uuid']
+    
+    # Clear the terminal
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    # Print certificate number and counter
+    print(f"Certificate {counter}: {certificate['certificateNumber']}")
+    
+    # Check if this certificate already exists
+    existing = supabase.table('eudamed_certificate').select("eudamed_uuid").eq("eudamed_uuid", eudamed_uuid).execute()
+    
+    if existing.data:
+        print(f"Certificate already exists with UUID: {eudamed_uuid}")
+        return existing.data[0]['id']
+    
+    # Insert new certificate
+    new_record = {
+        "eudamed_uuid": eudamed_uuid,
+        "scraping_status": "CREATED",
+        "json_response": certificate,
+        # Other fields can be added here as needed
+    }
+    
+    result = supabase.table('eudamed_certificate').insert(new_record).execute()
+
+def process_certificates():
+    page = 0
+    counter = 1
+    while True:
+        data = fetch_certificates(page)
+        
+        for certificate in data['content']:
+            insert_certificate(certificate, counter)
+            counter += 1
+        
+        if data['last']:
+            break
+        
+        page += 1
+
+# Run the script
+process_certificates()
+print("Finished processing all certificates.")
