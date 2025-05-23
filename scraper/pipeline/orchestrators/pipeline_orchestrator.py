@@ -3,9 +3,9 @@ from prefect import flow
 
 from models.data_models import PipelineConfig
 from ui.progress_tracker import ProgressTracker
-from pipeline.company_processor import CompanyProcessor
-from pipeline.device_processor import DeviceProcessor
-from pipeline.certificate_processor import CertificateProcessor
+from pipeline.processors.company_processor import CompanyProcessor
+from pipeline.processors.device_processor import DeviceProcessor
+from pipeline.processors.certificate_processor import CertificateProcessor
 
 class PipelineOrchestrator:
     """Main orchestrator for the EUDAMED scraping pipeline"""

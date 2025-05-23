@@ -16,8 +16,11 @@ def get_supabase_client() -> Client:
 # EUDAMED API configuration
 EUDAMED_BASE_URLS = {
     "actors": "https://ec.europa.eu/tools/eudamed/api/actors",
-    "products": "https://ec.europa.eu/tools/eudamed/api/products",
-    "certificates": "https://ec.europa.eu/tools/eudamed/api/certificates"
+    "eos": "https://ec.europa.eu/tools/eudamed/api/eos",
+    "devices": "https://ec.europa.eu/tools/eudamed/api/devices/udiDiData",
+    "device_details": "https://ec.europa.eu/tools/eudamed/api/devices/basicUdiData/udiDiData",
+    "certificates": "https://ec.europa.eu/tools/eudamed/api/certificates",
+    "certificates_search": "https://ec.europa.eu/tools/eudamed/api/certificates/search/"
 }
 
 # Default pagination settings

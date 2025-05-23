@@ -82,7 +82,7 @@ class ContactProcessor:
     
     async def process_contacts_for_company(self, company_id: str, details: Dict[str, Any]) -> int:
         """
-        Process all contacts for a company. 
+        Process all contacts for a company using the new change tracking functionality.
         Returns the number of contacts processed.
         """
         contacts = self.extract_contacts_from_company_details(company_id, details)
@@ -94,51 +94,79 @@ class ContactProcessor:
             )
             return 0
         
-        processed_count = 0
-        
+        # Process city information for each contact
         for contact in contacts:
             try:
                 # Get or create city if city name is available
-                if hasattr(contact, '_city_name') or 'cityName' in details.get('actorDataPublicView', {}).get('regulatoryComplianceResponsibles', [{}])[0].get('geographicalAddress', {}):
-                    # Extract city name from the original JSON for this contact
-                    city_name = self._extract_city_name_for_contact(details, contact)
-                    if city_name:
-                        contact.city_id = await self.db.get_or_create_city(city_name)
-                
-                # Check if contact already exists
-                existing_contact = self.db.check_contact_exists(contact)
-                
-                if existing_contact:
-                    # Update existing contact
-                    self.db.update_contact_record(existing_contact['id'], contact)
-                    self.progress.display_status_update(
-                        f"Updated existing contact: {contact.first_name} {contact.family_name}", 
-                        "green"
-                    )
-                else:
-                    # Create new contact
-                    self.db.create_contact_record(contact)
-                    self.progress.display_status_update(
-                        f"Created new contact: {contact.first_name} {contact.family_name}", 
-                        "green"
-                    )
-                
-                processed_count += 1
-                
+                city_name = self._extract_city_name_for_contact(details, contact)
+                if city_name:
+                    contact.city_id = await self.db.get_or_create_city(city_name)
             except Exception as e:
                 self.progress.display_status_update(
-                    f"Error processing contact {contact.first_name} {contact.family_name}: {str(e)}", 
-                    "red"
+                    f"Error processing city for contact {contact.first_name} {contact.family_name}: {str(e)}", 
+                    "yellow"
                 )
         
-        if processed_count > 0:
+        # Generate scrape run ID for this processing session
+        scrape_run_id = self.db.generate_scrape_run_id()
+        
+        # Use the new change tracking functionality
+        try:
+            stats = self.db.process_company_contacts_with_change_tracking(
+                company_id=company_id,
+                new_contacts=contacts,
+                scrape_run_id=scrape_run_id
+            )
+            
+            # Display detailed stats
+            total_processed = stats['created'] + stats['updated'] + stats['unchanged']
+            
+            if stats['created'] > 0:
+                self.progress.display_status_update(
+                    f"✅ Created {stats['created']} new contact(s)", 
+                    "bold green"
+                )
+            
+            if stats['updated'] > 0:
+                self.progress.display_status_update(
+                    f"🔄 Updated {stats['updated']} existing contact(s)", 
+                    "bold blue"
+                )
+            
+            if stats['deactivated'] > 0:
+                self.progress.display_status_update(
+                    f"❌ Deactivated {stats['deactivated']} contact(s) no longer found", 
+                    "bold red"
+                )
+            
+            if stats['unchanged'] > 0:
+                self.progress.display_status_update(
+                    f"⚪ {stats['unchanged']} contact(s) unchanged", 
+                    "blue"
+                )
+            
+            # Show change summary if there were any changes
+            total_changes = stats['created'] + stats['updated'] + stats['deactivated']
+            if total_changes > 0:
+                self.progress.display_status_update(
+                    f"📝 {total_changes} contact change(s) logged (Run ID: {scrape_run_id[:8]}...)", 
+                    "bold cyan"
+                )
+            
             self.progress.display_status_update(
-                f"Successfully processed {processed_count} contact(s)", 
+                f"Successfully processed {total_processed} contact(s) with change tracking", 
                 "bold green"
             )
-        
-        return processed_count
-    
+            
+            return total_processed
+            
+        except Exception as e:
+            self.progress.display_status_update(
+                f"Error processing contacts with change tracking: {str(e)}", 
+                "red"
+            )
+            return 0
+
     def _extract_city_name_for_contact(self, details: Dict[str, Any], contact: ContactData) -> Optional[str]:
         """
         Extract city name for a specific contact from the company details JSON.

@@ -16,7 +16,7 @@ import os
 import sys
 import asyncio
 from models.data_models import PipelineConfig
-from pipeline.orchestrator import PipelineOrchestrator
+from pipeline import PipelineOrchestrator
 
 async def run_pipeline(iso_code: str, limit: int = None) -> None:
     """

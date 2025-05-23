@@ -4,9 +4,9 @@ from typing import List, Dict, Any, Optional
 from models.data_models import CompanyData
 from database.operations import DatabaseOperations
 from ui.progress_tracker import ProgressTracker
-from pipeline.contact_processor import ContactProcessor
-from get_company_id import fetch_companies as fetch_companies_list
-from get_company_details import fetch_company_details, update_company, insert_contact_person
+from .contact_processor import ContactProcessor
+from common.api_client import EudamedApiClient
+from scrapers.transformers.company_transformer import CompanyDataTransformer
 from config.settings import DEFAULT_PAGE_SIZE
 
 class CompanyProcessor:
@@ -16,6 +16,8 @@ class CompanyProcessor:
         self.db = DatabaseOperations()
         self.progress = progress_tracker
         self.contact_processor = ContactProcessor(progress_tracker)
+        self.api_client = EudamedApiClient()
+        self.transformer = CompanyDataTransformer()
     
     def fetch_companies_for_country(self, iso_code: str, page_size: int = DEFAULT_PAGE_SIZE) -> List[CompanyData]:
         """
@@ -29,6 +31,7 @@ class CompanyProcessor:
             page = 0
             
             while True:
+                from legacy.get_company_id import fetch_companies as fetch_companies_list
                 data = fetch_companies_list(iso_code, page, page_size)
                 
                 if page == 0:
@@ -97,10 +100,10 @@ class CompanyProcessor:
             self.progress.display_status_update("Creating new company record in database", "blue")
             company_record = self.db.create_company_record(company_data)
         
-        # Now fetch and save the details
+        # Now fetch and save the details using the common API client
         with self.progress.console.status(f"[bold blue]Fetching details for {company_data.name}...", spinner="dots"):
-            async with aiohttp.ClientSession() as session:
-                details = await fetch_company_details(session, company_record['eudamed_uuid'])
+            async with self.api_client.create_session() as session:
+                details = await self.api_client.fetch_company_details(session, company_record['eudamed_uuid'])
                 
                 if details is None:
                     self.progress.display_status_update(
@@ -121,17 +124,26 @@ class CompanyProcessor:
                     return company_record
         
         with self.progress.console.status("[bold blue]Updating company with details...", spinner="dots"):
-            # Update the company with details
-            await update_company(company_record['id'], details)
-            
-            # Extract the SRN from company details if not already set
-            if not company_record.get('eudamed_identifier') and 'actorDataPublicView' in details:
-                actor_data = details['actorDataPublicView']
-                srn = actor_data.get('srn')
-                if srn:
-                    self.db.update_company_srn(company_record['id'], srn)
-                    company_record['eudamed_identifier'] = srn
-                    self.progress.display_status_update(f"Found and updated SRN: {srn}", "green")
+            # Transform and update the company with details using the transformer
+            try:
+                transformed_data = self.transformer.transform_company_details(details)
+                
+                # Update the company record in the database
+                self.db.supabase.table('eudamed_company').update(transformed_data).eq('id', company_record['id']).execute()
+                
+                # Extract the SRN from company details if not already set
+                if not company_record.get('eudamed_identifier') and 'actorDataPublicView' in details:
+                    actor_data = details['actorDataPublicView']
+                    srn = actor_data.get('eudamedIdentifier')
+                    if srn:
+                        self.db.update_company_srn(company_record['id'], srn)
+                        company_record['eudamed_identifier'] = srn
+                        self.progress.display_status_update(f"Found and updated SRN: {srn}", "green")
+                        
+            except ValueError as e:
+                self.progress.display_status_update(f"Error transforming company data: {str(e)}", "bold red")
+                self.db.update_company_status(company_record['id'], "ERROR")
+                return company_record
         
         # Process contact persons for this company
         with self.progress.console.status("[bold blue]Processing contact persons...", spinner="dots"):

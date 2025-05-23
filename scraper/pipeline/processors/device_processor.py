@@ -4,8 +4,8 @@ from typing import List, Dict, Any, Optional
 from models.data_models import DeviceData
 from database.operations import DatabaseOperations
 from ui.progress_tracker import ProgressTracker
-from get_company_devices import fetch_devices
-from get_company_devices_details import fetch_device_details, update_product
+from legacy.get_company_devices import fetch_devices
+from legacy.get_company_devices_details import fetch_device_details, update_product
 
 class DeviceProcessor:
     """Handles device-related processing operations"""

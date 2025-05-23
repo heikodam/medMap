@@ -4,8 +4,8 @@ from typing import List, Dict, Any, Optional
 from models.data_models import CertificateData
 from database.operations import DatabaseOperations
 from ui.progress_tracker import ProgressTracker
-from get_certificates import fetch_certificates as fetch_certificates_list
-from get_certificate_details import fetch_certificate_details, update_certificate, update_certificate_scopes, update_certificate_documents, update_notified_body
+from legacy.get_certificates import fetch_certificates as fetch_certificates_list
+from legacy.get_certificate_details import fetch_certificate_details, update_certificate, update_certificate_scopes, update_certificate_documents, update_notified_body
 from config.settings import DEFAULT_PAGE_SIZE
 
 class CertificateProcessor:
