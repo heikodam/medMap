@@ -102,4 +102,5 @@ class PipelineConfig:
     max_companies: Optional[int] = None
     max_devices_per_company: Optional[int] = None
     max_certificates: Optional[int] = None
-    page_size: int = 300 
+    page_size: int = 300
+    enable_enrichment: bool = False 

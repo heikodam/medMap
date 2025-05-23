@@ -174,8 +174,14 @@ class CompanyProcessor:
                     "red"
                 )
         
-        # Return the updated company record
-        updated_company = company_record.copy()
+        # Fetch the updated company record from database to get all transformed fields
+        updated_company_result = self.db.supabase.table('eudamed_company').select("*").eq('id', company_record['id']).execute()
+        if updated_company_result.data:
+            updated_company = updated_company_result.data[0]
+        else:
+            # Fallback to original record if fetch fails
+            updated_company = company_record.copy()
+            
         updated_company.update({"scraping_status": "PIPELINE_GOT_COMPANY_DETAILS"})
         
         # Update stats

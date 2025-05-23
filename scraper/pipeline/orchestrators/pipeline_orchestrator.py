@@ -6,6 +6,7 @@ from ui.progress_tracker import ProgressTracker
 from pipeline.processors.company_processor import CompanyProcessor
 from pipeline.processors.device_processor import DeviceProcessor
 from pipeline.processors.certificate_processor import CertificateProcessor
+from pipeline.processors.enrichment_processor import EnrichmentProcessor
 
 class PipelineOrchestrator:
     """Main orchestrator for the EUDAMED scraping pipeline"""
@@ -15,14 +16,16 @@ class PipelineOrchestrator:
         self.company_processor = CompanyProcessor(self.progress)
         self.device_processor = DeviceProcessor(self.progress)
         self.certificate_processor = CertificateProcessor(self.progress)
+        self.enrichment_processor = EnrichmentProcessor(self.progress)
     
-    async def process_single_company_complete(self, company_data, max_devices_per_company: Optional[int] = None, 
+    async def process_single_company_complete(self, company_data, config: PipelineConfig, 
                                             company_index: int = 0, total_companies: int = 0) -> Dict[str, Any]:
         """
         Process a single company through the entire pipeline:
         1. Get and save company details
         2. Get devices for the company
         3. Get and save device details for each device
+        4. Run enrichment steps if enabled
         """
         self.progress.display_progress_header(company_data.name, company_index, total_companies)
         
@@ -33,12 +36,12 @@ class PipelineOrchestrator:
         devices = await self.device_processor.fetch_company_devices(updated_company)
         
         # Limit number of devices if specified
-        if max_devices_per_company is not None and devices:
+        if config.max_devices_per_company is not None and devices:
             original_count = len(devices)
-            devices = devices[:max_devices_per_company]
-            if original_count > max_devices_per_company:
+            devices = devices[:config.max_devices_per_company]
+            if original_count > config.max_devices_per_company:
                 self.progress.display_status_update(
-                    f"Limited to processing {max_devices_per_company}/{original_count} devices for company: {company_data.name}", 
+                    f"Limited to processing {config.max_devices_per_company}/{original_count} devices for company: {company_data.name}", 
                     "yellow"
                 )
         
@@ -62,13 +65,22 @@ class PipelineOrchestrator:
                         "blue"
                     )
         
+        # Step 4: Run enrichment if enabled
+        enriched_company = updated_company
+        if config.enable_enrichment:
+            self.progress.display_status_update(
+                f"Running enrichment for {company_data.name}", 
+                "magenta"
+            )
+            enriched_company = await self.enrichment_processor.process_company_enrichment(updated_company)
+        
         # Show company completion summary
         self.progress.display_completion_summary(company_data.name, len(processed_devices))
         
         # Show updated summary table
         self.progress.display_summary_panel("Pipeline Progress", "", "blue")
         
-        return {"company": updated_company, "devices": processed_devices}
+        return {"company": enriched_company, "devices": processed_devices}
     
     @flow(name="EUDAMED Company Pipeline")
     async def run_company_pipeline(self, config: PipelineConfig) -> List[Dict[str, Any]]:
@@ -117,7 +129,7 @@ class PipelineOrchestrator:
             # Process the company
             result = await self.process_single_company_complete(
                 company, 
-                config.max_devices_per_company,
+                config,
                 company_index=index,
                 total_companies=total_companies
             )

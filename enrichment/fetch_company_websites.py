@@ -13,35 +13,62 @@ load_dotenv()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-BING_SEARCH_V7_SUBSCRIPTION_KEY = os.environ.get("BING_SEARCH_V7_SUBSCRIPTION_KEY")
-BING_SEARCH_V7_ENDPOINT = os.environ.get("BING_SEARCH_V7_ENDPOINT")
+PERPLEXITY_API_KEY = os.environ.get("PERPLEXITY_API_KEY")
 
 openai.api_key = OPENAI_API_KEY
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def bing_search(query):
-    headers = {"Ocp-Apim-Subscription-Key": BING_SEARCH_V7_SUBSCRIPTION_KEY}
-    params = {"q": query, "count": 5, "offset": 0, "mkt": "en-US"}
-    response = requests.get(BING_SEARCH_V7_ENDPOINT, headers=headers, params=params)
-    response.raise_for_status()
-    search_results = response.json()
-    return [result['url'] for result in search_results.get("webPages", {}).get("value", [])]
-
-def verify_website_with_llm(company_name, urls):
-    # print(f"Verifying websites for {company_name}: {urls}")
-    urls_str = "\n".join(urls)
-    prompt = f"Given the company name '{company_name}' and the following list of URLs:\n\n{urls_str}\n\nWhich URL is most likely to be the official website for the company? If none of them seem to be the official website, respond with 'N/A'. Please provide only the domain (with the format 'example.com' (no www and no http)) or 'N/A' as your answer, with no additional explanation."
+def perplexity_search_website(company_name):
+    """
+    Use Perplexity's Sonar model to find the official website for a company.
+    Returns the domain name or None if not found.
+    """
+    headers = {
+        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+        "Content-Type": "application/json"
+    }
     
-    response = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant that verifies company websites."},
+    prompt = f"What is the official website for the company '{company_name}'? Please provide only the domain (with the format 'example.com' without www and without http/https) or 'N/A' if you cannot find it. Do not provide any additional explanation."
+    
+    data = {
+        "model": "sonar",
+        "messages": [
             {"role": "user", "content": prompt}
-        ]
-    )
+        ],
+        "max_tokens": 100
+    }
+    
+    try:
+        response = requests.post("https://api.perplexity.ai/chat/completions", headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
 
-    content = response.choices[0].message.content.strip()
-    return content if content.lower() != 'n/a' else None
+        
+        
+        content = result['choices'][0]['message']['content'].strip()
+        
+        # Clean up the response to extract just the domain
+        content = content.lower()
+        if content == 'n/a' or 'n/a' in content or 'not found' in content or 'cannot find' in content:
+            return None
+            
+        # Extract domain from the response (remove common prefixes/suffixes)
+        lines = content.split('\n')
+        for line in lines:
+            line = line.strip()
+            # Remove common text and extract domain-like strings
+            if '.' in line and not line.startswith('http'):
+                # Clean the line to extract just the domain
+                import re
+                domain_match = re.search(r'([a-zA-Z0-9-]+\.(?:[a-zA-Z]{2,}|[a-zA-Z]{2,}\.[a-zA-Z]{2,}))', line)
+                if domain_match:
+                    return domain_match.group(1)
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error searching for {company_name}: {str(e)}")
+        return None
 
 def fetch_and_update_company_websites(iso_code):
     def additional_filters(query):
@@ -59,31 +86,22 @@ def fetch_and_update_company_websites(iso_code):
 
     for i, company in enumerate(companies):
         company_name = company['name']
-        query = f"{company_name} official website"
-        search_results = bing_search(query)
-
-        if search_results:
-            # Verify the websites with LLM
-            verified_website = verify_website_with_llm(company_name, search_results)
-            
-            if verified_website:
-                # Update the company record in Supabase
-                supabase.table("eudamed_company").update({
-                    "website": verified_website,
-                    "scraping_status": "FETCHED_WEBSITE_BING" if verified_website else "ERROR_WEBSITE"
-                }).eq("id", company['id']).execute()
-                print(f"[{i+1}/{total_companies}] Updated {company_name} with website: {verified_website}")
-            else:
-                print(f"[{i+1}/{total_companies}] Could not verify website for {company_name}")
-                supabase.table("eudamed_company").update({
-                    "scraping_status": "ERROR_WEBSITE_SEARCH",
-                    "error_message": "Website verification failed"
-                }).eq("id", company['id']).execute()
+        
+        # Use Perplexity to find the official website
+        verified_website = perplexity_search_website(company_name)
+        
+        if verified_website:
+            # Update the company record in Supabase
+            supabase.table("eudamed_company").update({
+                "website": verified_website,
+                "scraping_status": "FETCHED_WEBSITE_PERPLEXITY"
+            }).eq("id", company['id']).execute()
+            print(f"[{i+1}/{total_companies}] Updated {company_name} with website: {verified_website}")
         else:
-            print(f"[{i+1}/{total_companies}] No website found for {company_name}")
+            print(f"[{i+1}/{total_companies}] Could not find website for {company_name}")
             supabase.table("eudamed_company").update({
                 "scraping_status": "ERROR_WEBSITE_SEARCH",
-                "error_message": "No website found"
+                "error_message": "Website not found via Perplexity"
             }).eq("id", company['id']).execute()
 
 if __name__ == "__main__":

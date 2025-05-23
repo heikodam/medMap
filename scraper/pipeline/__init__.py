@@ -6,7 +6,7 @@ This package contains the pipeline components for processing EUDAMED data:
 - orchestrators: Pipeline orchestration and workflow management
 """
 
-from .processors import CompanyProcessor, DeviceProcessor, CertificateProcessor, ContactProcessor
+from .processors import CompanyProcessor, DeviceProcessor, CertificateProcessor, ContactProcessor, EnrichmentProcessor
 from .orchestrators import PipelineOrchestrator
 
 __all__ = [
@@ -14,5 +14,6 @@ __all__ = [
     'DeviceProcessor', 
     'CertificateProcessor',
     'ContactProcessor',
+    'EnrichmentProcessor',
     'PipelineOrchestrator'
 ] 

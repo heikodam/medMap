@@ -1,128 +1,84 @@
-# EUDAMED Scraper Pipeline - Modular Architecture
+# EUDAMED Scraper Pipeline
 
-This is a refactored, modular version of the EUDAMED scraping pipeline following clean code principles and best practices.
+A modular, production-ready pipeline for scraping and enriching medical device data from the EUDAMED database.
 
-## 🏗️ Architecture Overview
+## 🚀 Quick Start
 
-The pipeline is now organized into clear, focused modules with single responsibilities:
-
-```
-scraper_v2/
-├── config/                    # Configuration and settings
-│   ├── __init__.py
-│   └── settings.py           # Environment variables, API URLs, constants
-├── models/                    # Data models and types
-│   ├── __init__.py
-│   └── data_models.py        # Dataclasses for companies, devices, certificates
-├── database/                  # Database operations
-│   ├── __init__.py
-│   └── operations.py         # Centralized Supabase operations
-├── ui/                        # User interface and progress tracking
-│   ├── __init__.py
-│   └── progress_tracker.py   # Rich console display and progress tracking
-├── pipeline/                  # Core processing logic
-│   ├── __init__.py
-│   ├── company_processor.py  # Company-specific processing
-│   ├── device_processor.py   # Device-specific processing
-│   ├── certificate_processor.py # Certificate-specific processing
-│   └── orchestrator.py       # Main pipeline coordination
-└── run_scraper_pipeline_new.py # Simplified main entry point
-```
-
-## 🎯 Key Improvements
-
-### 1. **Separation of Concerns**
-- **Database operations** are centralized in `database/operations.py`
-- **UI logic** is separated into `ui/progress_tracker.py`
-- **Business logic** is split into focused processors
-- **Configuration** is centralized in `config/settings.py`
-
-### 2. **Modularity**
-- Each module has a single, clear responsibility
-- Easy to test individual components
-- Easy to modify or replace components
-
-### 3. **Clean Code Principles**
-- Descriptive class and method names
-- Clear documentation and docstrings
-- Consistent error handling
-- Type hints throughout
-
-### 4. **Maintainability**
-- Much smaller, focused files
-- Clear dependencies between modules
-- Easy to understand the flow
-- Easy to add new features
-
-## 🚀 Usage
-
-### Basic Usage
 ```bash
-# Process all companies, devices, and certificates for Ukraine
-python run_scraper_pipeline_new.py UA
+# Basic scraping for Ukraine
+python run_scraper.py UA
 
-# Process max 5 companies, 5 devices per company, 5 certificates
-python run_scraper_pipeline_new.py UA 5
+# Scrape with enrichment (website fetching, URL cleaning, employee count)
+python run_scraper.py UA --enrichment
+
+# Limit processing to 5 companies
+python run_scraper.py UA 5 --enrichment
 ```
 
-### Pipeline Types
-The orchestrator supports three types of pipelines:
+## 🏗️ Architecture
 
-1. **Company Pipeline**: Processes companies and their devices only
-2. **Certificate Pipeline**: Processes certificates only
-3. **Complete Pipeline**: Processes both companies and certificates
+```
+scraper/
+├── config/          # Configuration and settings
+├── models/          # Data models and types
+├── database/        # Database operations
+├── ui/              # Progress tracking and console interface
+├── pipeline/        # Core processing logic
+│   ├── processors/  # Processing modules
+│   │   └── services/  # Specialized enrichment services
+│   └── orchestrators/  # Pipeline coordination
+├── common/          # Shared utilities
+├── scrapers/        # Data fetching modules
+└── docs/            # Detailed documentation
+```
 
-## 📊 Module Details
+## 🎯 Key Features
 
-### `config/settings.py`
-- Environment variable management
-- API URL configuration
-- Default settings and constants
-- Supabase client factory
+- **Modular Design**: Each component has a single responsibility
+- **Enrichment Pipeline**: Automatic website discovery and data enrichment
+- **Progress Tracking**: Rich console interface with real-time updates
+- **Error Handling**: Graceful degradation and comprehensive logging
+- **Configurable**: Environment-based configuration for different deployments
 
-### `models/data_models.py`
-- `CompanyData`: Company information structure
-- `DeviceData`: Device information structure
-- `CertificateData`: Certificate information structure
-- `ProcessingStats`: Progress tracking statistics
-- `PipelineConfig`: Configuration for pipeline runs
+## 🔗 Enrichment Services
 
-### `database/operations.py`
-- Centralized database operations
-- CRUD operations for companies, devices, certificates
-- Status management
-- City management
+### Website Fetching
+Uses Perplexity AI to discover company websites automatically.
 
-### `ui/progress_tracker.py`
-- Rich console interface
-- Progress tracking and statistics
-- Status updates and summaries
-- Beautiful terminal output
+### URL Cleaning  
+Normalizes and cleans website URLs using OpenAI GPT for consistency.
 
-### `pipeline/` Processors
-Each processor handles a specific domain:
+### Employee Count
+Fetches employee count information from company websites.
 
-- **CompanyProcessor**: Fetches and processes company data
-- **DeviceProcessor**: Fetches and processes device data  
-- **CertificateProcessor**: Fetches and processes certificate data
-- **Orchestrator**: Coordinates all processors and manages pipeline flow
+## ⚙️ Configuration
 
-## 🔄 Migration from Old Pipeline
+Required environment variables:
 
-The old `run_scraper_pipeline.py` file is preserved for reference. The new pipeline:
+```bash
+# Database
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
 
-1. **Maintains the same functionality** - all features are preserved
-2. **Uses the same database schema** - no database changes needed
-3. **Provides the same CLI interface** - same command-line usage
-4. **Improves performance** - better error handling and progress tracking
+# Enrichment APIs (optional)
+OPENAI_API_KEY=your_openai_key        # For URL cleaning
+PERPLEXITY_API_KEY=your_perplexity_key # For website fetching
+```
 
-## 🧪 Testing
+## 📊 Pipeline Types
 
-To test individual components:
+- **Company Pipeline**: Processes companies and their devices
+- **Certificate Pipeline**: Processes certificates only  
+- **Complete Pipeline**: Processes both companies and certificates
+- **Enrichment Pipeline**: Adds data enrichment to company processing
+
+## 🧪 Development
+
+### Testing Components
 
 ```python
-# Test company processing
-from pipeline.company_processor import CompanyProcessor
+# Test individual processors
+from pipeline.processors.company_processor import CompanyProcessor
 from ui.progress_tracker import ProgressTracker
 
 progress = ProgressTracker()
@@ -130,40 +86,24 @@ processor = CompanyProcessor(progress)
 companies = processor.fetch_companies_for_country("UA")
 ```
 
-## 🔧 Configuration
+### Adding New Services
 
-Environment variables (set in `.env`):
-- `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_KEY`: Your Supabase API key
+1. Create service in `pipeline/processors/services/`
+2. Add to `services/__init__.py`
+3. Use in appropriate processor
 
-Default settings can be modified in `config/settings.py`:
-- `DEFAULT_PAGE_SIZE`: API pagination size (default: 300)
-- `MAX_RETRY_ATTEMPTS`: Retry attempts for failed requests (default: 3)
-- `RETRY_DELAY_SECONDS`: Delay between retries (default: 5)
+## 📚 Documentation
 
-## 🚨 Error Handling
+For detailed documentation, see the [`docs/`](./docs/) folder:
 
-The new architecture provides robust error handling:
-- **Graceful degradation**: Individual failures don't crash the entire pipeline
-- **Detailed logging**: Clear error messages with context
-- **Status tracking**: Database records track processing status
-- **Retry logic**: Automatic retries for transient failures
+- **Implementation Details**: Detailed technical documentation
+- **Architecture Decisions**: Design rationale and patterns
+- **API References**: Service and processor documentation
 
-## 📈 Performance
+## 🔄 Migration
 
-Performance improvements in the new architecture:
-- **Better memory management**: Processing one item at a time
-- **Clearer progress tracking**: Real-time progress updates
-- **Optimized database operations**: Batch operations where possible
-- **Async processing**: Non-blocking operations throughout
+This pipeline maintains full compatibility with the existing database schema and provides the same CLI interface as previous versions, with added enrichment capabilities.
 
-## 🤝 Contributing
+---
 
-When adding new features:
-1. Follow the modular architecture
-2. Add appropriate error handling
-3. Include progress tracking
-4. Update this README
-5. Use snake_case for naming
-6. Add type hints
-7. Include docstrings 
+**Need help?** Check the [detailed documentation](./docs/) or examine the example usage in `example_usage.py`. 
