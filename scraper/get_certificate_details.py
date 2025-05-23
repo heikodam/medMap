@@ -51,7 +51,7 @@ async def get_company_id(manufacturer_uuid):
     return None
 
 async def get_notified_body_id(notified_body_uuid):
-    result = supabase.table('eudamed_notified_bodies') \
+    result = supabase.table('eudamed_notified_body') \
         .select("id") \
         .eq("eudamed_uuid", notified_body_uuid) \
         .execute()
@@ -192,7 +192,7 @@ async def update_notified_body(notified_body):
 
     # print("Notified body data:", notified_body_data)
 
-    supabase.table('eudamed_notified_bodies').upsert(notified_body_data, on_conflict="eudamed_uuid",).execute()
+    supabase.table('eudamed_notified_body').upsert(notified_body_data, on_conflict="eudamed_uuid",).execute()
 
 async def process_certificate(session, certificate):
     details = await fetch_certificate_details(session, certificate['eudamed_uuid'])

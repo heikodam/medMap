@@ -1,80 +1,65 @@
+"""
+EUDAMED Scraper Pipeline - Main Entry Point
+
+This is the simplified main file that orchestrates the entire EUDAMED scraping pipeline.
+It uses a modular architecture with clean separation of concerns.
+
+Usage:
+    python run_scraper_pipeline_new.py <iso_code> [limit]
+
+Examples:
+    python run_scraper_pipeline_new.py UA        # Process all companies, devices, and certificates for Ukraine
+    python run_scraper_pipeline_new.py UA 5      # Process max 5 companies, 5 devices per company, 5 certificates
+"""
+
 import os
-import asyncio
-from dotenv import load_dotenv
-from supabase import create_client, Client
 import sys
+import asyncio
+from models.data_models import PipelineConfig
+from pipeline.orchestrator import PipelineOrchestrator
 
-# Import all the scraper modules
-from get_company_id import process_companies_for_country, process_all_countries
-from get_company_details import process_all_companies as process_all_company_details
-from get_company_devices import process_all_companies as process_all_company_devices
-from get_company_devices_details import process_all_products as process_all_device_details
-
-# Load environment variables
-load_dotenv()
-
-# Supabase setup
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
-
-def reset_scraping_status():
-    """Reset scraping status for all companies"""
-    print("Resetting scraping status for all companies...")
-    supabase.table('eudamed_company') \
-        .update({"scraping_status": "PENDING"}) \
-        .eq("scraping_status", "CREATED") \
-        .execute()
-    print("Reset complete.")
-
-def validate_iso_code(iso_code):
-    """Validate if the given ISO code exists in the countries table"""
-    if not iso_code:
-        return True
+async def run_pipeline(iso_code: str, limit: int = None) -> None:
+    """
+    Main entry point for running the complete EUDAMED pipeline
     
-    result = supabase.table('country').select("iso_code").eq("iso_code", iso_code).execute()
-    return len(result.data) > 0
-
-async def run_scraper(iso_code):
-    """Run all scraper scripts in sequence for a specific country"""
-    if not validate_iso_code(iso_code):
-        print(f"Error: Invalid ISO code '{iso_code}'")
-        return
-
-    # Reset scraping status
-    reset_scraping_status()
+    Args:
+        iso_code: Country ISO code (e.g., 'UA' for Ukraine)
+        limit: Optional limit for processing (applies to companies, devices per company, and certificates)
+    """
+    # Create pipeline configuration
+    config = PipelineConfig(
+        iso_code=iso_code,
+        max_companies=limit,
+        max_devices_per_company=limit,
+        max_certificates=limit
+    )
     
-    # Step 1: Get company IDs
-    print("\n1. Getting company IDs...")
-    process_companies_for_country(iso_code)
-    
-    # Step 2: Get company details
-    print("\n2. Getting company details...")
-    await process_all_company_details()
-    
-    # Step 3: Get company devices
-    print("\n3. Getting company devices...")
-    await process_all_company_devices()
-    
-    # Step 4: Get device details
-    print("\n4. Getting device details...")
-    await process_all_device_details()
-    
-    
-    print("\nAll scraping tasks completed!") # IE, XI, UK, DE, FR
+    # Initialize and run the orchestrator
+    orchestrator = PipelineOrchestrator()
+    await orchestrator.run_complete_pipeline(config)
 
 def main():
-    """
-    Main function that requires exactly one ISO code as a command line argument.
-    Throws an error if no ISO code or multiple arguments are provided.
-    """
-    if len(sys.argv) != 2:
-        print("Error: Exactly one ISO code must be provided as an argument.")
-        print("Usage: python run_scraper.py <iso_code>")
+    """CLI entry point with argument parsing and validation"""
+    if len(sys.argv) < 2:
+        print("Usage: python run_scraper_pipeline_new.py <iso_code> [limit]")
+        print("Examples:")
+        print("  python run_scraper_pipeline_new.py UA        # Process all companies, devices, and certificates for Ukraine")
+        print("  python run_scraper_pipeline_new.py UA 5      # Process max 5 companies, 5 devices per company, 5 certificates")
         sys.exit(1)
     
-    iso_code = sys.argv[1]
-    asyncio.run(run_scraper(iso_code))
+    iso_code = sys.argv[1].upper()  # Ensure uppercase for consistency
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    
+    # Validate ISO code format (basic validation)
+    if len(iso_code) != 2 or not iso_code.isalpha():
+        print(f"Error: Invalid ISO code '{iso_code}'. Must be a 2-letter country code (e.g., 'UA', 'DE', 'FR')")
+        sys.exit(1)
+    
+    # Clear terminal for a fresh start
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    # Run the pipeline
+    asyncio.run(run_pipeline(iso_code, limit))
 
 if __name__ == "__main__":
     main() 

@@ -1,0 +1,1 @@
+# UI and progress tracking for EUDAMED scraper 
